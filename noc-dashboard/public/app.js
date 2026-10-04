@@ -93,9 +93,13 @@
     var url = (CFG.prtgBase || '') + '/api/table.json?content=' + content +
       '&output=json&count=50000&columns=' + columns;
     if (CFG.apiToken) url += '&apitoken=' + encodeURIComponent(CFG.apiToken);
-    return fetch(url, { cache: 'no-store', credentials: 'same-origin', signal: signal })
+    // Send the same request headers PRTG's own web UI (jQuery) sends.
+    var headers = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
+    var csrf = document.querySelector('meta[name="csrf-token"]');
+    if (csrf && csrf.content) headers['X-CSRF-Token'] = csrf.content;
+    return fetch(url, { cache: 'no-store', credentials: 'same-origin', headers: headers, signal: signal })
       .then(function (r) {
-        if (r.status === 401 || r.status === 403) throw new Error('Not logged in to PRTG (HTTP ' + r.status + ') - log in and reload');
+        if (r.status === 401 || r.status === 403) throw new Error('PRTG refused the request (HTTP ' + r.status + ') - ' + (CFG.apiToken ? 'API key rejected or not read-only/enabled' : 'log in to PRTG on this exact address, or set apiToken'));
         if (!r.ok) throw new Error('PRTG returned HTTP ' + r.status);
         return r.json().catch(function () {
           throw new Error('PRTG session expired or returned a login page - log in and reload');
