@@ -1,0 +1,23 @@
+# Linux: /etc/systemd/system/noc-dashboard.service
+# sudo useradd --system --no-create-home noc
+# sudo cp -r noc-dashboard /opt/ && sudo chown -R noc: /opt/noc-dashboard && sudo chmod 600 /opt/noc-dashboard/.env
+# sudo systemctl daemon-reload && sudo systemctl enable --now noc-dashboard
+[Unit]
+Description=PRTG NOC Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=noc
+WorkingDirectory=/opt/noc-dashboard
+ExecStart=/usr/bin/node /opt/noc-dashboard/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/opt/noc-dashboard
+
+[Install]
+WantedBy=multi-user.target

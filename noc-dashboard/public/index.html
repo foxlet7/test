@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>NOC Dashboard</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="conn" id="conn" title="Connection to PRTG"></span>
+      <div>
+        <h1 id="title">NOC Dashboard</h1>
+        <div class="sub" id="subtitle">Connecting to PRTG…</div>
+      </div>
+    </div>
+
+    <div class="summary" id="summary" aria-label="Sensor summary"></div>
+
+    <div class="clock">
+      <div class="time" id="clock-time">--:--:--</div>
+      <div class="date" id="clock-date"></div>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <main class="layout">
+    <section class="sections" id="sections" aria-label="Devices"></section>
+
+    <aside class="alerts">
+      <div class="alerts-head">
+        <h2>Active alerts</h2>
+        <span class="count" id="alert-count">0</span>
+      </div>
+      <ol class="alert-list" id="alert-list"></ol>
+    </aside>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="demo-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
