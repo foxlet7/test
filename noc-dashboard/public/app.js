@@ -17,7 +17,9 @@
     alertStatuses: ['down', 'warn', 'unusual', 'ack'],
     source: 'backend', // 'backend' = Node server (/api/state); 'prtg' = call PRTG API directly
     prtgBase: '',      // direct mode: '' = same origin as the page (file inside PRTG webroot)
-    apiToken: '',      // direct mode: leave EMPTY to use the logged-in PRTG session
+    apiToken: '',      // direct mode: PRTG API key (read-only user). Empty = use logged-in session
+    username: '',      // direct mode alternative to apiToken: PRTG username ...
+    passhash: '',      // ... + that user's passhash
   }, window.NOC_CONFIG || {});
 
   var params = new URLSearchParams(location.search);
@@ -92,14 +94,18 @@
   function prtgTable(content, columns, signal) {
     var url = (CFG.prtgBase || '') + '/api/table.json?content=' + content +
       '&output=json&count=50000&columns=' + columns;
-    if (CFG.apiToken) url += '&apitoken=' + encodeURIComponent(CFG.apiToken);
+    if (CFG.apiToken) {
+      url += '&apitoken=' + encodeURIComponent(CFG.apiToken);
+    } else if (CFG.username && CFG.passhash) {
+      url += '&username=' + encodeURIComponent(CFG.username) + '&passhash=' + encodeURIComponent(CFG.passhash);
+    }
     // Send the same request headers PRTG's own web UI (jQuery) sends.
     var headers = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
     var csrf = document.querySelector('meta[name="csrf-token"]');
     if (csrf && csrf.content) headers['X-CSRF-Token'] = csrf.content;
     return fetch(url, { cache: 'no-store', credentials: 'same-origin', headers: headers, signal: signal })
       .then(function (r) {
-        if (r.status === 401 || r.status === 403) throw new Error('PRTG refused the request (HTTP ' + r.status + ') - ' + (CFG.apiToken ? 'API key rejected or not read-only/enabled' : 'log in to PRTG on this exact address, or set apiToken'));
+        if (r.status === 401 || r.status === 403) throw new Error('PRTG refused the request (HTTP ' + r.status + ') - ' + (CFG.apiToken || CFG.passhash ? 'PRTG rejected the key/passhash in the file - check it was pasted correctly' : 'log in to PRTG on this exact address, or set apiToken'));
         if (!r.ok) throw new Error('PRTG returned HTTP ' + r.status);
         return r.json().catch(function () {
           throw new Error('PRTG session expired or returned a login page - log in and reload');

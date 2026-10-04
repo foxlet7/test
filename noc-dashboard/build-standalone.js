@@ -12,7 +12,18 @@ const js = (s) => s.replace(/<\/script/gi, '<\\/script');
 
 const config = pub('config.js').replace(
   /window\.NOC_CONFIG = \{/,
-  "window.NOC_CONFIG = {\n  source: 'prtg',  // single-file mode: read PRTG API directly with your PRTG login\n  apiToken: '',    // leave EMPTY. Only set for a login-less screen (read-only user key - visible in page source!)\n"
+  "window.NOC_CONFIG = {\n" +
+  "  // =====================================================================\n" +
+  "  //  PASTE YOUR PRTG LOGIN DETAILS HERE  (use a READ-ONLY PRTG user)\n" +
+  "  //  Option A: API key  ->  apiToken: 'xxxxxxxx',\n" +
+  "  //  Option B: user + passhash  ->  username: 'noc-screen', passhash: '1234567890',\n" +
+  "  //  Anyone who can open this page can read these values in the source.\n" +
+  "  // =====================================================================\n" +
+  "  apiToken: '',\n" +
+  "  username: '',\n" +
+  "  passhash: '',\n" +
+  "  // =====================================================================\n\n" +
+  "  source: 'prtg',  // single-file mode: read the PRTG API directly\n"
 );
 
 let html = pub('index.html')
