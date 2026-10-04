@@ -7,6 +7,7 @@
     refreshSeconds: 30,
     staleAfterSeconds: 120,
     sections: [],
+    panels: [],   // map-style layout: [{ title, items: [{ device, sensor, label }] }] - overrides sections
     unmatched: 'group',
     excludeGroups: [],
     hidePausedDevices: false,
@@ -258,6 +259,8 @@
       }),
       alerts: alerts,
       deviceCount: devices.length,
+      devices: devices,
+      sensors: sensors,
     };
   }
 
@@ -289,6 +292,116 @@
     tot.appendChild(el('span', 'n', String(m.totals.all)));
     tot.appendChild(el('span', 'l', 'Sensors / ' + m.deviceCount + ' dev'));
     box.appendChild(tot);
+  }
+
+  // ------------------------------------------------------------------ map-style panels
+  // Names are compared ignoring case and ALL whitespace, so "(065) ALULA -office-2"
+  // matches "(065) ALULA - office-2". Wrap a value in /.../ to use a regex instead.
+  function squash(x) { return String(x == null ? '' : x).replace(/\s+/g, '').toLowerCase(); }
+  function textMatcher(pattern, exact) {
+    var p = String(pattern);
+    if (p.length > 2 && p[0] === '/' && p[p.length - 1] === '/') {
+      var re = new RegExp(p.slice(1, -1), 'i');
+      return function (v) { return re.test(String(v)); };
+    }
+    var want = squash(p);
+    return exact
+      ? function (v) { return squash(v) === want; }
+      : function (v) { return squash(v).indexOf(want) >= 0; };
+  }
+
+  function resolveItem(item, m) {
+    if (item.id != null) {
+      // PRTG object ID: matches a sensor or a device (IDs are unique across PRTG)
+      var id = Number(item.id);
+      var sensor = m.sensors.filter(function (x) { return x.id === id; })[0];
+      if (sensor) return [{ kind: 'sensor', obj: sensor }];
+      var dev = m.devices.filter(function (x) { return x.id === id; })[0];
+      return dev ? [{ kind: 'device', obj: dev }] : [];
+    }
+    var dm = item.device ? textMatcher(item.device, false) : null;
+    if (item.sensor) {
+      var sm = textMatcher(item.sensor, true);
+      return m.sensors
+        .filter(function (s) { return sm(s.name) && (!dm || dm(s.device)); })
+        .map(function (s) { return { kind: 'sensor', obj: s }; });
+    }
+    if (!dm) return [];
+    return m.devices
+      .filter(function (d) { return dm(d.name); })
+      .map(function (d) { return { kind: 'device', obj: d }; });
+  }
+
+  function deviceValue(d) {
+    var parts = [];
+    ['down', 'warn', 'unusual', 'ack', 'paused', 'up'].forEach(function (k) {
+      if (d.counts[k]) parts.push(d.counts[k] + ' ' + (k === 'warn' ? 'warning' : k));
+    });
+    return parts.join(' · ') || 'no sensors';
+  }
+
+  function renderPanels(m) {
+    var root = $('sections');
+    var grid = el('div', 'panels');
+
+    CFG.panels.forEach(function (panel) {
+      var rows = [];
+      var worst = 6;
+      (panel.items || []).forEach(function (item) {
+        var hits = resolveItem(item, m);
+        if (!hits.length) {
+          rows.push({ missing: true, item: item });
+          return;
+        }
+        hits.forEach(function (h) {
+          worst = Math.min(worst, RANK[cls(h.obj.status)]);
+          rows.push({ hit: h, item: item, multi: hits.length > 1 });
+        });
+      });
+
+      var worstCls = Object.keys(RANK).filter(function (k) { return RANK[k] === worst; })[0];
+      var box = el('div', 'panel s-' + worstCls);
+      var head = el('div', 'section-head');
+      head.appendChild(el('h2', null, panel.title));
+      head.appendChild(el('span', 'meta', rows.length + (rows.length === 1 ? ' item' : ' items')));
+      box.appendChild(head);
+
+      var ul = el('ul', 'rows');
+      rows.forEach(function (r) {
+        if (r.missing) {
+          var miss = el('li', 'row missing');
+          miss.appendChild(el('span', 'dot'));
+          var t = el('div', 'lbl');
+          t.appendChild(el('span', 'name', r.item.label || r.item.sensor || r.item.device || ('ID ' + r.item.id)));
+          t.appendChild(el('span', 'dev', 'not found in PRTG - check the name / user access'));
+          miss.appendChild(t);
+          ul.appendChild(miss);
+          return;
+        }
+        var o = r.hit.obj;
+        var c = cls(o.status);
+        var li = el('li', 'row s-' + c);
+        li.title = (r.hit.kind === 'sensor' ? o.device + ' › ' + o.name : o.name) + ' - ' + label(o.status) +
+          (o.message && o.message !== 'OK' ? '\n' + o.message : '');
+        li.appendChild(el('span', 'dot'));
+        var lbl = el('div', 'lbl');
+        var name = r.item.label && !r.multi ? r.item.label : o.name;
+        lbl.appendChild(el('span', 'name', name));
+        if (r.hit.kind === 'sensor') lbl.appendChild(el('span', 'dev', o.device));
+        else if (CFG.showHost && o.host) lbl.appendChild(el('span', 'dev', o.host));
+        li.appendChild(lbl);
+        var right = el('div', 'val');
+        right.appendChild(el('span', 'v', r.hit.kind === 'sensor' ? (o.lastValue || '-') : deviceValue(o)));
+        if (c !== 'up') right.appendChild(el('span', 'st', label(o.status)));
+        li.appendChild(right);
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+      grid.appendChild(box);
+    });
+
+    root.textContent = '';
+    root.appendChild(grid);
   }
 
   function renderSections(m) {
@@ -403,7 +516,8 @@
   function render() {
     var m = model(state.data);
     renderSummary(m);
-    renderSections(m);
+    if (CFG.panels && CFG.panels.length) renderPanels(m);
+    else renderSections(m);
     renderAlerts(m);
     document.title = (m.totals.down ? '(' + m.totals.down + ' DOWN) ' : '') + CFG.title;
   }

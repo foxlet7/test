@@ -35,6 +35,23 @@ let html = pub('index.html')
 html = html.replace('<!doctype html>', '<!doctype html>\n<!-- PRTG NOC Dashboard - single-file build. Edit NOC_CONFIG below to change layout. -->');
 
 if (/(src|href)="(app|config|demo-data)\./.test(html)) throw new Error('bundle incomplete');
-fs.mkdirSync(path.join(__dirname, 'dist'), { recursive: true });
-fs.writeFileSync(path.join(__dirname, 'dist', 'noc-dashboard.htm'), html);
-console.log('dist/noc-dashboard.htm', html.length, 'bytes');
+
+// Optional overlays (site layout, secrets) applied after config.js:
+//   node build-standalone.js sites/asl-noc.js local/secrets.js -o local/noc2.htm
+const args = process.argv.slice(2);
+let out = path.join('dist', 'noc-dashboard.htm');
+const overlays = [];
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '-o') out = args[++i];
+  else overlays.push(args[i]);
+}
+if (overlays.length) {
+  const extra = overlays.map((f) => '// ---- ' + path.basename(f) + '\n' + fs.readFileSync(f, 'utf8')).join('\n');
+  const marker = '<script src="demo-data.js"></script>';
+  html = html.replace(/(window\.NOC_CONFIG = \{[\s\S]*?\n\};\n)/, (m) => m + '\n' + js(extra) + '\n');
+  if (!html.includes(extra.split('\n')[0])) throw new Error('overlay not applied' + marker);
+}
+
+fs.mkdirSync(path.dirname(path.resolve(__dirname, out)), { recursive: true });
+fs.writeFileSync(path.resolve(__dirname, out), html);
+console.log(out, html.length, 'bytes');

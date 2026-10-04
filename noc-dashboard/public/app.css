@@ -195,6 +195,47 @@ body.stale .sections, body.stale .alert-list { filter: grayscale(.85); opacity: 
 
 .empty { color: var(--muted); padding: 2rem; text-align: center; }
 
+/* ---------------------------------------------------------------- map-style panels */
+.panels {
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--c, var(--border));
+  border-radius: var(--radius);
+  padding: .7rem .8rem .8rem;
+}
+.panel.s-up { border-top-color: var(--up); }
+.rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+.row {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .45rem .6rem;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--c);
+  border-radius: 6px;
+  min-width: 0;
+}
+.row .dot { width: .7rem; height: .7rem; border-radius: 50%; background: var(--c); flex: 0 0 auto; }
+.row .lbl { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.row .name { font-weight: 600; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.row .dev { font-size: .72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .val { display: flex; flex-direction: column; align-items: flex-end; flex: 0 0 auto; }
+.row .v { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.row.s-up .v { color: var(--text); }
+.row .st { font-size: .68rem; color: var(--c); text-transform: uppercase; letter-spacing: .05em; }
+.row.s-down { background: color-mix(in srgb, var(--down) 18%, var(--panel-2)); border-color: var(--down); }
+.row.s-down .dot { animation: blink 1s steps(2) infinite; }
+.row.s-warn { background: color-mix(in srgb, var(--warn) 10%, var(--panel-2)); }
+.row.s-unusual { background: color-mix(in srgb, var(--unusual) 10%, var(--panel-2)); }
+.row.s-paused { opacity: .6; }
+.row.missing { --c: var(--unknown); opacity: .55; font-style: italic; border-style: dashed; }
+
 /* ---------------------------------------------------------------- alerts */
 .alerts {
   border-left: 1px solid var(--border);
