@@ -15,6 +15,9 @@
     maxProblemsPerTile: 3,
     maxAlerts: 50,
     alertStatuses: ['down', 'warn', 'unusual', 'ack'],
+    source: 'backend', // 'backend' = Node server (/api/state); 'prtg' = call PRTG API directly
+    prtgBase: '',      // direct mode: '' = same origin as the page (file inside PRTG webroot)
+    apiToken: '',      // direct mode: leave EMPTY to use the logged-in PRTG session
   }, window.NOC_CONFIG || {});
 
   var params = new URLSearchParams(location.search);
@@ -80,11 +83,72 @@
   }
 
   // ------------------------------------------------------------------ data
+  // ---- direct PRTG mode (single-file install inside PRTG's webroot) --------
+  // Same-origin calls to /api/table.json ride on the viewer's PRTG login
+  // session, so no credentials need to live in the page.
+  var DEVICE_COLS = 'objid,group,device,host,status,tags,priority';
+  var SENSOR_COLS = 'objid,parentid,group,device,sensor,status,message,lastvalue,priority,tags,downtimesince';
+
+  function prtgTable(content, columns, signal) {
+    var url = (CFG.prtgBase || '') + '/api/table.json?content=' + content +
+      '&output=json&count=50000&columns=' + columns;
+    if (CFG.apiToken) url += '&apitoken=' + encodeURIComponent(CFG.apiToken);
+    return fetch(url, { cache: 'no-store', credentials: 'same-origin', signal: signal })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) throw new Error('Not logged in to PRTG (HTTP ' + r.status + ') - log in and reload');
+        if (!r.ok) throw new Error('PRTG returned HTTP ' + r.status);
+        return r.json().catch(function () {
+          throw new Error('PRTG session expired or returned a login page - log in and reload');
+        });
+      });
+  }
+
+  // DOMParser builds an inert document (no script execution, no image loads)
+  var parser = new DOMParser();
+  function strip(s) {
+    var str = String(s == null ? '' : s);
+    if (str.indexOf('<') < 0 && str.indexOf('&') < 0) return str.trim();
+    return (parser.parseFromString(str, 'text/html').body.textContent || '').trim();
+  }
+  function n(v, f) { var x = Number(v); return isFinite(x) ? x : f; }
+  function tagList(t) { return String(t || '').split(/[\s,]+/).filter(Boolean); }
+
+  function fetchDirect(signal) {
+    return Promise.all([
+      prtgTable('devices', DEVICE_COLS, signal),
+      prtgTable('sensors', SENSOR_COLS, signal),
+    ]).then(function (res) {
+      return {
+        ok: true,
+        devices: (res[0].devices || []).map(function (d) {
+          return {
+            id: n(d.objid, 0), name: strip(d.device), group: strip(d.group), host: strip(d.host),
+            status: n(d.status_raw, 1), tags: tagList(d.tags), priority: n(d.priority_raw, n(d.priority, 3)),
+          };
+        }),
+        sensors: (res[1].sensors || []).map(function (s) {
+          return {
+            id: n(s.objid, 0), deviceId: n(s.parentid, 0), device: strip(s.device), group: strip(s.group),
+            name: strip(s.sensor), status: n(s.status_raw, 1),
+            message: strip(s.message_raw != null ? s.message_raw : s.message),
+            lastValue: strip(s.lastvalue), priority: n(s.priority_raw, n(s.priority, 3)),
+            tags: tagList(s.tags), downSince: strip(s.downtimesince),
+          };
+        }),
+      };
+    });
+  }
+
   function fetchState() {
     if (DEMO) return Promise.resolve(window.NOC_DEMO());
 
     var ctrl = new AbortController();
     var t = setTimeout(function () { ctrl.abort(); }, 25000);
+
+    if (CFG.source === 'prtg') {
+      return fetchDirect(ctrl.signal).finally(function () { clearTimeout(t); });
+    }
+
     return fetch('api/state', { cache: 'no-store', signal: ctrl.signal })
       .then(function (r) {
         return r.json().catch(function () { return { ok: false, error: 'HTTP ' + r.status }; });

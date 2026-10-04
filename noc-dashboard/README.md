@@ -14,7 +14,24 @@ Map Designer map (`mapshow.htm?id=3162`).
 - **No PRTG sensors used:** reading the API costs no sensors (relevant with a 100-sensor license).
 - **No npm dependencies:** needs only Node.js 18 or newer.
 
-## How it works
+## Quickest install: single file inside PRTG (no server)
+
+`dist/noc-dashboard.htm` is the whole dashboard in one file. Rebuild it with `node build-standalone.js`.
+
+1. On the PRTG core server, copy it to
+   `C:\Program Files (x86)\PRTG Network Monitor\webroot\noc-dashboard.htm`
+2. Log in to PRTG in the browser, then open `https://<prtg>/noc-dashboard.htm`.
+   Add `?kiosk=1` for the wall screen.
+3. It calls `/api/table.json` on the same server using **your logged-in PRTG session**.
+   No API key goes in the file. The screen shows exactly what that PRTG user is allowed to see.
+
+Notes:
+- PRTG updates may overwrite or remove custom webroot files. Keep a copy and re-copy it after upgrades.
+- To change the layout, edit the `window.NOC_CONFIG = {...}` block near the top of the file.
+- For a wall screen, log it in as a dedicated **read-only** PRTG user.
+
+## Server install: Node backend (API key kept off the screen)
+
 
 ```
 NOC screen (browser) ──HTTP──► noc-dashboard (Node, :8080) ──HTTPS + API key──► PRTG /api/table.json
