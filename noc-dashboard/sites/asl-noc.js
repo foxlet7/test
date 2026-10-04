@@ -18,7 +18,7 @@ Object.assign(window.NOC_CONFIG, {
       { id: 3115, label: 'On-Prem FreeSwitch' },
     ] },
     { title: 'Critical Switches', items: [
-      { id: 2333, label: 'AsilaCore1 (192.168.202.250) [RMON]' },
+      { id: 2333, label: 'AsilaCore1 [RMON]' },   // IP shows underneath
       { id: 2162, label: 'Main Switch (External Switch)' },
     ] },
     { title: 'AL-ULA', items: [

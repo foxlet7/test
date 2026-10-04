@@ -6,7 +6,10 @@
     subtitle: 'PRTG live status',
     refreshSeconds: 30,
     staleAfterSeconds: 120,
-    reloadPageHours: 6,  // full page reload so wall screens pick up a new file version (0 = never)
+    reloadPageHours: 6,
+    fitToScreen: 'auto', // grow text to fill the screen: true / false / 'auto' (= on for panels layout)
+    fitMaxFontPx: 48,    // upper limit for fit-to-screen text size
+    panelColumns: 0,     // panels per row; 0 = all panels in one row  // full page reload so wall screens pick up a new file version (0 = never)
     sections: [],
     panels: [],   // map-style layout: [{ title, items: [{ device, sensor, label }] }] - overrides sections
     unmatched: 'group',
@@ -385,16 +388,16 @@
         li.title = (r.hit.kind === 'sensor' ? o.device + ' › ' + o.name : o.name) + ' - ' + label(o.status) +
           (o.message && o.message !== 'OK' ? '\n' + o.message : '');
         li.appendChild(el('span', 'dot'));
-        var lbl = el('div', 'lbl');
+        var body = el('div', 'lbl');
         var name = r.item.label && !r.multi ? r.item.label : o.name;
-        lbl.appendChild(el('span', 'name', name));
-        if (r.hit.kind === 'sensor') lbl.appendChild(el('span', 'dev', o.device));
-        else if (CFG.showHost && o.host) lbl.appendChild(el('span', 'dev', o.host));
-        li.appendChild(lbl);
-        var right = el('div', 'val');
-        right.appendChild(el('span', 'v', r.hit.kind === 'sensor' ? (o.lastValue || '-') : deviceValue(o)));
-        if (c !== 'up') right.appendChild(el('span', 'st', label(o.status)));
-        li.appendChild(right);
+        body.appendChild(el('span', 'name', name));
+        var line2 = el('div', 'line2');
+        var sub = r.hit.kind === 'sensor' ? o.device : (CFG.showHost ? o.host : '');
+        line2.appendChild(el('span', 'dev', sub || ''));
+        if (c !== 'up') line2.appendChild(el('span', 'st', label(o.status)));
+        line2.appendChild(el('span', 'v', r.hit.kind === 'sensor' ? (o.lastValue || '-') : deviceValue(o)));
+        body.appendChild(line2);
+        li.appendChild(body);
         ul.appendChild(li);
       });
       box.appendChild(ul);
@@ -520,6 +523,7 @@
     if (CFG.panels && CFG.panels.length) renderPanels(m);
     else renderSections(m);
     renderAlerts(m);
+    fitToScreen();
     document.title = (m.totals.down ? '(' + m.totals.down + ' DOWN) ' : '') + CFG.title;
   }
 
@@ -583,6 +587,64 @@
         setTimeout(cycle, Math.max(5, CFG.refreshSeconds) * 1000);
       });
   }
+
+  // ------------------------------------------------------------------ fit to screen
+  // Wall screens: find the largest root font size at which the device area
+  // still fits without scrolling. Everything is sized in rem, so the whole
+  // page scales together. ?zoom=1.5 forces a fixed size instead.
+  var ZOOM = parseFloat(params.get('zoom'));
+  var FIT = !ZOOM && (params.has('fit') || CFG.fitToScreen === true ||
+    (CFG.fitToScreen === 'auto' && CFG.panels && CFG.panels.length > 0));
+  if (ZOOM > 0) document.documentElement.style.fontSize = (16 * ZOOM) + 'px';
+
+  function fitToScreen() {
+    if (!FIT || window.innerWidth < 900) {
+      if (FIT) document.documentElement.style.fontSize = '';
+      return;
+    }
+    var root = document.documentElement;
+    var box = $('sections');
+    var grid = box.querySelector('.panels');
+    var top = document.querySelector('.top');
+    function clipped(n) {
+      return n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1;
+    }
+    // Fits = no scrolling AND no name, value or heading cut off.
+    function fits() {
+      if (box.scrollHeight > box.clientHeight + 1) return false;
+      if (root.scrollWidth > window.innerWidth || top.scrollWidth > top.clientWidth + 1) return false;
+      var must = box.querySelectorAll('.row .name, .row .v, .section-head h2');
+      for (var i = 0; i < must.length; i++) if (clipped(must[i])) return false;
+      return true;
+    }
+    function search() {
+      var lo = 10, hi = CFG.fitMaxFontPx || 48;
+      for (var i = 0; i < 14; i++) {
+        var mid = (lo + hi) / 2;
+        root.style.fontSize = mid + 'px';
+        if (fits()) lo = mid; else hi = mid;
+      }
+      return Math.floor(lo * 10) / 10;
+    }
+    function setCols(c) { if (grid) grid.style.gridTemplateColumns = 'repeat(' + c + ', minmax(0, 1fr))'; }
+
+    var n = grid ? CFG.panels.length : 0;
+    var options = CFG.panelColumns ? [CFG.panelColumns] : [n, Math.ceil(n / 2), Math.ceil(n / 3)];
+    var best = { size: 0, cols: options[0] };
+    options.filter(function (c, i, a) { return c >= 1 && a.indexOf(c) === i; }).forEach(function (c) {
+      setCols(c);
+      var size = search();
+      if (size > best.size + 0.5) best = { size: size, cols: c }; // prefer the wider (earlier) layout on ties
+    });
+    setCols(best.cols);
+    root.style.fontSize = best.size + 'px';
+  }
+
+  var resizeTimer;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(fitToScreen, 200);
+  });
 
   // Kiosk mode: if the device area doesn't fit the screen, scroll it slowly
   // top -> bottom -> top so nothing stays hidden on an unattended wall screen.
