@@ -6,6 +6,7 @@
     subtitle: 'PRTG live status',
     refreshSeconds: 30,
     staleAfterSeconds: 120,
+    reloadPageHours: 6,  // full page reload so wall screens pick up a new file version (0 = never)
     sections: [],
     panels: [],   // map-style layout: [{ title, items: [{ device, sensor, label }] }] - overrides sections
     unmatched: 'group',
@@ -602,6 +603,9 @@
 
   $('title').textContent = CFG.title;
   if (params.has('kiosk')) autoScroll();
+  if (CFG.reloadPageHours > 0) {
+    setTimeout(function () { location.reload(); }, CFG.reloadPageHours * 3600 * 1000);
+  }
   tick();
   setInterval(tick, 1000);
   cycle();

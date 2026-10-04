@@ -17,6 +17,7 @@ window.NOC_CONFIG = {
 
   refreshSeconds: 30,       // how often the screen polls the backend
   staleAfterSeconds: 120,   // after this with no good update, screen goes "STALE"
+  reloadPageHours: 6,       // full page reload every N hours (picks up a replaced file); 0 = never
 
   sections: [
     { title: 'WAN / Internet',        tags: ['noc-wan'],    groups: ['wan', 'internet', 'isp', 'circuit'] },

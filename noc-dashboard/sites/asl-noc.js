@@ -7,7 +7,7 @@
  * Rows that don't resolve show as "not found" (wrong ID or the PRTG user can't see it).
  */
 Object.assign(window.NOC_CONFIG, {
-  title: 'Alasila NOC',
+  title: 'AlasilaCX NOC',
   subtitle: 'PRTG live status',
   panels: [
     { title: 'Critical Systems', items: [
