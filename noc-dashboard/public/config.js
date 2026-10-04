@@ -33,6 +33,15 @@ window.NOC_CONFIG = {
   sortDevices: 'name',       // 'name' keeps tiles in fixed positions; 'severity' floats problems to the front
   showHost: true,            // show device IP/hostname on tiles
   maxProblemsPerTile: 3,     // problem sensors listed inside each tile
+
+  // ---- Show ONLY selected sensors/devices (like your old map) -------------
+  // Put PRTG object IDs here (sensor IDs or device IDs - a device ID shows all
+  // its sensors). Find an ID in the PRTG URL: .../sensor.htm?id=2045 -> 2045
+  // Leave both empty to show everything the PRTG user can see.
+  onlyIds: [],
+  onlyTags: [],              // or: tag the sensors in PRTG (e.g. 'noc') and list the tag here
+  showAllSensors: 'auto',    // list every selected sensor with its value ('auto' = when filtering)
+  maxSensorsPerTile: 8,
   maxAlerts: 50,             // max rows in the alert panel
   alertStatuses: ['down', 'warn', 'unusual', 'ack'], // what counts as an alert in the right panel
 };

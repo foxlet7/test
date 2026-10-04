@@ -13,6 +13,10 @@
     sortDevices: 'name',
     showHost: true,
     maxProblemsPerTile: 3,
+    onlyIds: [],          // PRTG object IDs (sensors or devices) to show; empty = everything
+    onlyTags: [],         // PRTG tags (on sensor or device) to show; empty = everything
+    showAllSensors: 'auto', // list every sensor + value in tiles; 'auto' = on when a filter is set
+    maxSensorsPerTile: 8,
     maxAlerts: 50,
     alertStatuses: ['down', 'warn', 'unusual', 'ack'],
     source: 'backend', // 'backend' = Node server (/api/state); 'prtg' = call PRTG API directly
@@ -66,6 +70,15 @@
     };
   });
   var excluded = (CFG.excludeGroups || []).map(function (g) { return new RegExp(g, 'i'); });
+  var onlyIds = {};
+  (CFG.onlyIds || []).forEach(function (i) { onlyIds[Number(i)] = true; });
+  var onlyTags = (CFG.onlyTags || []).map(function (t) { return String(t).toLowerCase(); });
+  var FILTERED = Object.keys(onlyIds).length > 0 || onlyTags.length > 0;
+  var SHOW_ALL = CFG.showAllSensors === 'auto' ? FILTERED : Boolean(CFG.showAllSensors);
+
+  function hasTag(list) {
+    return list.some(function (t) { return onlyTags.indexOf(String(t).toLowerCase()) >= 0; });
+  }
 
   var state = {
     data: null,
@@ -191,7 +204,22 @@
     var deviceIds = {};
     devices.forEach(function (d) { deviceIds[d.id] = true; });
 
-    var sensors = data.sensors.filter(function (s) { return deviceIds[s.deviceId]; });
+    var devById = {};
+    devices.forEach(function (d) { devById[d.id] = d; });
+
+    var sensors = data.sensors.filter(function (s) {
+      if (!deviceIds[s.deviceId]) return false;
+      if (!FILTERED) return true;
+      var d = devById[s.deviceId];
+      return onlyIds[s.id] || onlyIds[s.deviceId] || hasTag(s.tags) || hasTag(d.tags);
+    });
+
+    if (FILTERED) {
+      // keep only devices that are selected themselves or have a selected sensor
+      var keep = {};
+      sensors.forEach(function (s) { keep[s.deviceId] = true; });
+      devices = devices.filter(function (d) { return keep[d.id] || onlyIds[d.id] || hasTag(d.tags); });
+    }
     sensors.forEach(function (s) {
       var c = cls(s.status);
       totals[c] += 1;
@@ -312,20 +340,21 @@
     if (!d.sensors.length) counts.appendChild(el('span', 'c none', 'no sensors'));
     tile.appendChild(counts);
 
-    var problems = d.sensors.filter(function (s) {
+    var limit = SHOW_ALL ? CFG.maxSensorsPerTile : CFG.maxProblemsPerTile;
+    var problems = SHOW_ALL ? d.sensors : d.sensors.filter(function (s) {
       var k = cls(s.status);
       return k !== 'up' && k !== 'paused';
     });
-    if (problems.length && CFG.maxProblemsPerTile > 0) {
-      var ul = el('ul', 'problems');
-      problems.slice(0, CFG.maxProblemsPerTile).forEach(function (s) {
+    if (problems.length && limit > 0) {
+      var ul = el('ul', 'problems' + (SHOW_ALL ? ' all' : ''));
+      problems.slice(0, limit).forEach(function (s) {
         var li = el('li', 's-' + cls(s.status));
         li.appendChild(el('span', 'pn', s.name));
         if (s.lastValue) li.appendChild(el('span', 'pv', s.lastValue));
         ul.appendChild(li);
       });
-      if (problems.length > CFG.maxProblemsPerTile) {
-        ul.appendChild(el('li', 'more', '+' + (problems.length - CFG.maxProblemsPerTile) + ' more'));
+      if (problems.length > limit) {
+        ul.appendChild(el('li', 'more', '+' + (problems.length - limit) + ' more'));
       }
       tile.appendChild(ul);
     }

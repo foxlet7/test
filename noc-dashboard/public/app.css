@@ -189,6 +189,9 @@ body.stale .sections, body.stale .alert-list { filter: grayscale(.85); opacity: 
 .problems li .pn { color: var(--c); flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .problems li .pv { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .problems li.more { color: var(--muted); }
+.problems.all li.s-up .pn { color: var(--text); }
+.problems.all li.s-up .pv { color: var(--up); }
+.problems.all li.s-paused .pn, .problems.all li.s-paused .pv { color: var(--muted); }
 
 .empty { color: var(--muted); padding: 2rem; text-align: center; }
 
