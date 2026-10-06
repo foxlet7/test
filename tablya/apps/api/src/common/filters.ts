@@ -56,6 +56,12 @@ export class AccessLogMiddleware implements NestMiddleware {
   }
 }
 
+function isClientHttpError(e: unknown): e is { status?: number; statusCode?: number } {
+  const x = e as { status?: number; statusCode?: number; expose?: boolean } | null;
+  const s = x?.status ?? x?.statusCode;
+  return typeof s === 'number' && s >= 400 && s < 500 && x?.expose === true;
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly log = new Logger('errors');
@@ -91,6 +97,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = typeof body === 'string' ? body : Array.isArray(body?.message) ? body.message.join('; ') : (body?.message ?? message);
         if (status === 413) { code = 'VALIDATION_FAILED'; message = 'Payload too large.'; }
       }
+    } else if (isClientHttpError(exception)) {
+      // body-parser / multer errors (payload too large, malformed JSON, ...) carry their own 4xx status
+      status = exception.status ?? exception.statusCode!;
+      code = status === 413 ? 'VALIDATION_FAILED' : status === 404 ? 'NOT_FOUND' : 'VALIDATION_FAILED';
+      message = status === 413 ? 'Payload too large.' : 'Malformed request.';
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       if (exception.code === 'P2002') { status = 409; code = 'CONFLICT'; message = 'This record already exists.'; }
       else if (exception.code === 'P2025') { status = 404; code = 'NOT_FOUND'; message = 'Not found.'; }

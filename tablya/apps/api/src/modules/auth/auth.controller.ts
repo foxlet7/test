@@ -10,7 +10,8 @@ import { AuthService } from './auth.service';
 
 const meta = (req: AuthedRequest) => ({ ip: req.ip, userAgent: req.headers['user-agent'] });
 const code6 = z.object({ code: z.string().regex(/^\d{6}$/) });
-const authLimit = () => ({ default: { limit: Number(process.env.AUTH_THROTTLE_LIMIT ?? 10), ttl: 60_000 } });
+/** Resolved per request so the limit follows configuration instead of import-time env. */
+const authLimit = () => ({ default: { limit: () => Number(process.env.AUTH_THROTTLE_LIMIT ?? 10), ttl: 60_000 } });
 
 @ApiTags('auth')
 @Controller('auth')

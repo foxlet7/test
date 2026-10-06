@@ -244,6 +244,9 @@ export class AdminController {
     const settings = await this.settings.get();
     const payout = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Kitchen" WHERE id = ${id}::uuid FOR UPDATE`; // serialise payouts per kitchen
+      // A concurrent request with the same key may have created it while we waited for the lock.
+      const raced = await tx.payout.findUnique({ where: { idempotencyKey: `${id}:${key}` } });
+      if (raced) return raced;
       const bal = await this.ledger.kitchenBalance(id);
       if (bal.availableMinor <= 0) throw new AppError('CONFLICT', 'Nothing to pay out.');
       return tx.payout.create({ data: { kitchenId: id, amountMinor: bal.availableMinor, currency: settings.currency, periodStart: new Date(0), periodEnd: new Date(), idempotencyKey: `${id}:${key}` } });

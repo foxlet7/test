@@ -57,7 +57,7 @@ export class CatalogController {
     const rows = await this.prisma.$queryRaw<{ id: string; score: number }[]>(
       Prisma.sql`SELECT id::text, GREATEST(word_similarity(${nq}, "searchText"), CASE WHEN "searchText" ILIKE ${like} THEN 1 ELSE 0 END)::float AS score
                  FROM ${Prisma.raw(`"${table}"`)}
-                 WHERE "deletedAt" IS NULL AND ("searchText" ILIKE ${like} OR word_similarity(${nq}, "searchText") >= 0.4)
+                 WHERE "deletedAt" IS NULL AND ("searchText" ILIKE ${like} OR word_similarity(${nq}, "searchText") >= 0.5)
                  ORDER BY score DESC LIMIT ${limit}`,
     );
     return new Map(rows.map((r) => [r.id, r.score]));
