@@ -1,0 +1,894 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────── Enums ─────────────
+enum Role {
+  CUSTOMER
+  COOK
+  KITCHEN_MANAGER
+  SUPPORT
+  MODERATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum VerificationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PLACED
+  ACCEPTED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  REJECTED
+  REFUND_PENDING
+  REFUNDED
+}
+
+enum Fulfillment {
+  DELIVERY
+  PICKUP
+}
+
+enum PaymentMethod {
+  CARD
+  CASH_ON_DELIVERY
+}
+
+enum PaymentStatus {
+  INITIATED
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+enum TxType {
+  AUTHORIZE
+  CAPTURE
+  REFUND
+  VOID
+}
+
+enum RefundStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum LedgerAccount {
+  CUSTOMER_PAYMENT
+  PLATFORM_FEE
+  VENDOR_EARNINGS
+  DELIVERY_FEE
+  TAX
+  REFUND
+  PAYOUT
+  ADJUSTMENT
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+enum OptionType {
+  VARIATION
+  ADDON
+}
+
+enum ReviewStatus {
+  VISIBLE
+  HIDDEN
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+enum ReportTarget {
+  USER
+  KITCHEN
+  MENU_ITEM
+  REVIEW
+  IMAGE
+}
+
+enum ReportReason {
+  SPAM
+  ABUSE
+  UNSAFE_FOOD
+  FRAUD
+  INAPPROPRIATE
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  ACTIONED
+  DISMISSED
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+enum ActorType {
+  CUSTOMER
+  COOK
+  ADMIN
+  SYSTEM
+}
+
+// ───────────── Identity ─────────────
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String?    @unique
+  phone        String?    @unique
+  passwordHash String?
+  name         String
+  roles        Role[]     @default([CUSTOMER])
+  status       UserStatus @default(ACTIVE)
+  locale       String     @default("en")
+  emailVerifiedAt DateTime?
+  phoneVerifiedAt DateTime?
+  totpSecretEnc   String?
+  totpEnabled     Boolean @default(false)
+  failedLogins    Int     @default(0)
+  lockedUntil     DateTime?
+  lastLoginAt     DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  customerProfile CustomerProfile?
+  cookProfile     CookProfile?
+  kitchens        Kitchen[]
+  addresses       Address[]
+  sessions        RefreshToken[]
+  orders          Order[]
+  reviews         Review[]
+  favorites       Favorite[]
+  notifications   Notification[]
+  deviceTokens    DeviceToken[]
+  notificationPref NotificationPreference?
+  cart            Cart?
+  reportsMade     Report[]       @relation("ReportReporter")
+  blocks          UserBlock[]    @relation("Blocker")
+  blockedBy       UserBlock[]    @relation("Blocked")
+  tickets         SupportTicket[]
+  couponRedemptions CouponRedemption[]
+  analytics       AnalyticsEvent[]
+
+  @@index([status])
+}
+
+model CustomerProfile {
+  userId    String   @id @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarKey String?
+  createdAt DateTime @default(now())
+}
+
+model CookProfile {
+  userId    String   @id @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio       String?
+  avatarKey String?
+  createdAt DateTime @default(now())
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  familyId   String    @db.Uuid
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+enum OtpPurpose {
+  PHONE_VERIFY
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
+model OtpCode {
+  id        String     @id @default(uuid()) @db.Uuid
+  userId    String?    @db.Uuid
+  target    String
+  purpose   OtpPurpose
+  codeHash  String
+  attempts  Int        @default(0)
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime   @default(now())
+
+  @@index([target, purpose])
+}
+
+model UserBlock {
+  blockerId String   @db.Uuid
+  blockedId String   @db.Uuid
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([blockerId, blockedId])
+}
+
+// ───────────── Geography ─────────────
+model Address {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String?
+  line1     String
+  line2     String?
+  city      String
+  lat       Float
+  lng       Float
+  notes     String?
+  isDefault Boolean  @default(false)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ───────────── Catalogue ─────────────
+model Category {
+  id        String     @id @default(uuid()) @db.Uuid
+  slug      String     @unique
+  name      String
+  nameAr    String
+  iconKey   String?
+  sortOrder Int        @default(0)
+  active    Boolean    @default(true)
+  items     MenuItem[]
+}
+
+model Cuisine {
+  id        String           @id @default(uuid()) @db.Uuid
+  slug      String           @unique
+  name      String
+  nameAr    String
+  sortOrder Int              @default(0)
+  active    Boolean          @default(true)
+  kitchens  KitchenCuisine[]
+}
+
+model Kitchen {
+  id          String             @id @default(uuid()) @db.Uuid
+  ownerId     String             @db.Uuid
+  owner       User               @relation(fields: [ownerId], references: [id])
+  slug        String             @unique
+  name        String
+  nameAr      String?
+  description String?
+  descriptionAr String?
+  policies    String?
+  coverKey    String?
+  galleryKeys String[]
+  city        String
+  lat         Float
+  lng         Float
+  timezone    String             @default("Asia/Riyadh")
+  verification VerificationStatus @default(DRAFT)
+  acceptingOrders Boolean        @default(true)
+  pausedUntil DateTime?
+  maxConcurrentOrders Int?
+  prepTimeMin Int                @default(30)
+  minOrderMinor Int              @default(0)
+  pickupEnabled Boolean          @default(true)
+  deliveryEnabled Boolean        @default(true)
+  commissionBps Int?
+  ratingAvg   Float              @default(0)
+  ratingCount Int                @default(0)
+  searchText  String             @default("")
+  deletedAt   DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  cuisines    KitchenCuisine[]
+  schedule    KitchenSchedule[]
+  zones       DeliveryZone[]
+  menuItems   MenuItem[]
+  orders      Order[]
+  reviews     Review[]
+  favorites   Favorite[]
+  verifications KitchenVerification[]
+  payouts     Payout[]
+
+  @@index([verification, deletedAt])
+  @@index([lat, lng])
+}
+
+model KitchenCuisine {
+  kitchenId String  @db.Uuid
+  cuisineId String  @db.Uuid
+  kitchen   Kitchen @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  cuisine   Cuisine @relation(fields: [cuisineId], references: [id])
+
+  @@id([kitchenId, cuisineId])
+}
+
+model KitchenSchedule {
+  id          String  @id @default(uuid()) @db.Uuid
+  kitchenId   String  @db.Uuid
+  kitchen     Kitchen @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int
+  openMinute  Int
+  closeMinute Int
+
+  @@index([kitchenId])
+}
+
+model DeliveryZone {
+  id        String  @id @default(uuid()) @db.Uuid
+  kitchenId String  @db.Uuid
+  kitchen   Kitchen @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  name      String
+  /// Customers within this distance (km) of the kitchen are served at feeMinor.
+  maxKm     Float
+  feeMinor  Int
+  etaMinutes Int    @default(30)
+
+  @@index([kitchenId])
+}
+
+model KitchenVerification {
+  id         String             @id @default(uuid()) @db.Uuid
+  kitchenId  String             @db.Uuid
+  kitchen    Kitchen            @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  status     VerificationStatus
+  note       String?
+  reviewerId String?            @db.Uuid
+  submittedAt DateTime?
+  reviewedAt DateTime?
+  createdAt  DateTime           @default(now())
+  documents  KitchenDocument[]
+
+  @@index([kitchenId])
+  @@index([status])
+}
+
+model KitchenDocument {
+  id             String              @id @default(uuid()) @db.Uuid
+  verificationId String              @db.Uuid
+  verification   KitchenVerification @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+  type           String
+  /// Private storage key. Never returned to non-admin users.
+  storageKey     String
+  createdAt      DateTime            @default(now())
+}
+
+model MenuItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  kitchenId   String   @db.Uuid
+  kitchen     Kitchen  @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  categoryId  String?  @db.Uuid
+  category    Category? @relation(fields: [categoryId], references: [id])
+  name        String
+  nameAr      String?
+  description String?
+  descriptionAr String?
+  priceMinor  Int
+  imageKeys   String[]
+  ingredients String[]
+  allergens   String[]
+  prepTimeMin Int?
+  isAvailable Boolean  @default(true)
+  /// Remaining portions for today; null means unlimited.
+  stock       Int?
+  soldCount   Int      @default(0)
+  searchText  String   @default("")
+  version     Int      @default(1)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  optionGroups MenuItemOptionGroup[]
+  favorites    Favorite[]
+
+  @@index([kitchenId, deletedAt])
+  @@index([categoryId])
+}
+
+model MenuItemOptionGroup {
+  id         String     @id @default(uuid()) @db.Uuid
+  menuItemId String     @db.Uuid
+  menuItem   MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  name       String
+  nameAr     String?
+  type       OptionType
+  required   Boolean    @default(false)
+  minSelect  Int        @default(0)
+  maxSelect  Int        @default(1)
+  options    MenuItemOption[]
+
+  @@index([menuItemId])
+}
+
+model MenuItemOption {
+  id              String              @id @default(uuid()) @db.Uuid
+  groupId         String              @db.Uuid
+  group           MenuItemOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name            String
+  nameAr          String?
+  priceDeltaMinor Int                 @default(0)
+  isAvailable     Boolean             @default(true)
+
+  @@index([groupId])
+}
+
+// ───────────── Cart & Orders ─────────────
+model Cart {
+  id         String     @id @default(uuid()) @db.Uuid
+  customerId String     @unique @db.Uuid
+  customer   User       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  kitchenId  String?    @db.Uuid
+  items      CartItem[]
+  updatedAt  DateTime   @updatedAt
+}
+
+model CartItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  cartId     String   @db.Uuid
+  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  menuItemId String   @db.Uuid
+  quantity   Int
+  optionIds  String[]
+  note       String?
+
+  @@index([cartId])
+}
+
+model Order {
+  id            String        @id @default(uuid()) @db.Uuid
+  orderNo       Int           @unique @default(autoincrement())
+  customerId    String        @db.Uuid
+  customer      User          @relation(fields: [customerId], references: [id])
+  kitchenId     String        @db.Uuid
+  kitchen       Kitchen       @relation(fields: [kitchenId], references: [id])
+  status        OrderStatus   @default(PENDING_PAYMENT)
+  fulfillment   Fulfillment
+  paymentMethod PaymentMethod
+  currency      String
+  subtotalMinor Int
+  discountMinor Int           @default(0)
+  deliveryFeeMinor Int        @default(0)
+  serviceFeeMinor  Int        @default(0)
+  taxMinor      Int           @default(0)
+  totalMinor    Int
+  commissionBps Int
+  couponId      String?       @db.Uuid
+  couponCode    String?
+  /// Snapshot so later address edits/deletions don't rewrite history.
+  addressSnapshot Json?
+  note          String?
+  etaMinutes    Int?
+  cancelReason  String?
+  idempotencyKey String
+  version       Int           @default(1)
+  placedAt      DateTime?
+  deliveredAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  items         OrderItem[]
+  history       OrderStatusHistory[]
+  payments      Payment[]
+  refunds       Refund[]
+  review        Review?
+  ledger        LedgerEntry[]
+
+  @@unique([customerId, idempotencyKey])
+  @@index([kitchenId, status])
+  @@index([customerId, createdAt])
+  @@index([status, createdAt])
+}
+
+model OrderItem {
+  id          String  @id @default(uuid()) @db.Uuid
+  orderId     String  @db.Uuid
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId  String? @db.Uuid
+  name        String
+  unitPriceMinor Int
+  quantity    Int
+  lineTotalMinor Int
+  note        String?
+  options     Json
+
+  @@index([orderId])
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid()) @db.Uuid
+  orderId   String      @db.Uuid
+  order     Order       @relation(fields: [orderId], references: [id])
+  fromStatus OrderStatus?
+  toStatus  OrderStatus
+  actorType ActorType
+  actorId   String?     @db.Uuid
+  reason    String?
+  createdAt DateTime    @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+// ───────────── Payments, refunds, ledger ─────────────
+model Payment {
+  id          String        @id @default(uuid()) @db.Uuid
+  orderId     String        @db.Uuid
+  order       Order         @relation(fields: [orderId], references: [id])
+  provider    String
+  method      PaymentMethod
+  status      PaymentStatus @default(INITIATED)
+  amountMinor Int
+  currency    String
+  providerRef String?
+  idempotencyKey String     @unique
+  failureReason String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  transactions PaymentTransaction[]
+  refunds      Refund[]
+
+  @@unique([provider, providerRef])
+  @@index([orderId])
+  @@index([status, createdAt])
+}
+
+model PaymentTransaction {
+  id          String   @id @default(uuid()) @db.Uuid
+  paymentId   String   @db.Uuid
+  payment     Payment  @relation(fields: [paymentId], references: [id])
+  type        TxType
+  amountMinor Int
+  status      String
+  providerTxId String?
+  raw         Json?
+  createdAt   DateTime @default(now())
+
+  @@index([paymentId])
+}
+
+model WebhookEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  provider    String
+  eventId     String
+  type        String
+  payload     Json
+  signatureValid Boolean
+  processedAt DateTime?
+  error       String?
+  receivedAt  DateTime  @default(now())
+
+  @@unique([provider, eventId])
+}
+
+model Refund {
+  id          String       @id @default(uuid()) @db.Uuid
+  orderId     String       @db.Uuid
+  order       Order        @relation(fields: [orderId], references: [id])
+  paymentId   String       @db.Uuid
+  payment     Payment      @relation(fields: [paymentId], references: [id])
+  amountMinor Int
+  status      RefundStatus @default(PENDING)
+  reason      String
+  providerRef String?
+  idempotencyKey String    @unique
+  createdBy   String?      @db.Uuid
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([orderId])
+}
+
+/// Append-only double-entry-style ledger. Rows are immutable (DB trigger).
+model LedgerEntry {
+  id          String        @id @default(uuid()) @db.Uuid
+  orderId     String?       @db.Uuid
+  order       Order?        @relation(fields: [orderId], references: [id])
+  kitchenId   String?       @db.Uuid
+  account     LedgerAccount
+  /// Signed minor units. Positive = credit to the account holder.
+  amountMinor Int
+  currency    String
+  /// Natural idempotency key, e.g. "order:<id>:capture".
+  ref         String
+  memo        String?
+  createdAt   DateTime      @default(now())
+
+  @@unique([ref, account])
+  @@index([kitchenId, account])
+  @@index([orderId])
+}
+
+model Payout {
+  id          String       @id @default(uuid()) @db.Uuid
+  kitchenId   String       @db.Uuid
+  kitchen     Kitchen      @relation(fields: [kitchenId], references: [id])
+  amountMinor Int
+  currency    String
+  status      PayoutStatus @default(PENDING)
+  periodStart DateTime
+  periodEnd   DateTime
+  idempotencyKey String    @unique
+  providerRef String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([kitchenId, status])
+}
+
+// ───────────── Engagement ─────────────
+model Review {
+  id        String       @id @default(uuid()) @db.Uuid
+  orderId   String       @unique @db.Uuid
+  order     Order        @relation(fields: [orderId], references: [id])
+  customerId String      @db.Uuid
+  customer  User         @relation(fields: [customerId], references: [id])
+  kitchenId String       @db.Uuid
+  kitchen   Kitchen      @relation(fields: [kitchenId], references: [id])
+  rating    Int
+  text      String?
+  imageKeys String[]
+  status    ReviewStatus @default(VISIBLE)
+  editedAt  DateTime?
+  createdAt DateTime     @default(now())
+
+  @@index([kitchenId, status, createdAt])
+}
+
+model Favorite {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kitchenId  String?   @db.Uuid
+  kitchen    Kitchen?  @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  menuItemId String?   @db.Uuid
+  menuItem   MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+
+  @@unique([userId, kitchenId])
+  @@unique([userId, menuItemId])
+}
+
+model Coupon {
+  id          String       @id @default(uuid()) @db.Uuid
+  code        String       @unique
+  type        DiscountType
+  value       Int
+  maxDiscountMinor Int?
+  minSubtotalMinor Int     @default(0)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  usageLimit  Int?
+  usedCount   Int          @default(0)
+  perUserLimit Int         @default(1)
+  kitchenId   String?      @db.Uuid
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+
+  redemptions CouponRedemption[]
+  promotions  Promotion[]
+}
+
+model CouponRedemption {
+  id        String   @id @default(uuid()) @db.Uuid
+  couponId  String   @db.Uuid
+  coupon    Coupon   @relation(fields: [couponId], references: [id])
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id])
+  orderId   String   @unique @db.Uuid
+  createdAt DateTime @default(now())
+
+  @@index([couponId, userId])
+}
+
+model Promotion {
+  id       String   @id @default(uuid()) @db.Uuid
+  title    String
+  titleAr  String
+  imageKey String?
+  couponId String?  @db.Uuid
+  coupon   Coupon?  @relation(fields: [couponId], references: [id])
+  startsAt DateTime?
+  endsAt   DateTime?
+  active   Boolean  @default(true)
+  sortOrder Int     @default(0)
+}
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  titleKey  String
+  title     String
+  body      String?
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model NotificationPreference {
+  userId    String  @id @db.Uuid
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  push      Boolean @default(true)
+  email     Boolean @default(true)
+  marketing Boolean @default(false)
+}
+
+model DeviceToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ───────────── Trust & safety ─────────────
+model Report {
+  id         String       @id @default(uuid()) @db.Uuid
+  reporterId String       @db.Uuid
+  reporter   User         @relation("ReportReporter", fields: [reporterId], references: [id])
+  targetType ReportTarget
+  targetId   String       @db.Uuid
+  reason     ReportReason
+  details    String?
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now())
+  actions    ModerationAction[]
+
+  @@unique([reporterId, targetType, targetId])
+  @@index([status, createdAt])
+}
+
+model ModerationAction {
+  id         String   @id @default(uuid()) @db.Uuid
+  reportId   String?  @db.Uuid
+  report     Report?  @relation(fields: [reportId], references: [id])
+  actorId    String   @db.Uuid
+  targetType ReportTarget
+  targetId   String   @db.Uuid
+  action     String
+  reason     String
+  createdAt  DateTime @default(now())
+}
+
+model SupportTicket {
+  id        String       @id @default(uuid()) @db.Uuid
+  userId    String       @db.Uuid
+  user      User         @relation(fields: [userId], references: [id])
+  orderId   String?      @db.Uuid
+  subject   String
+  status    TicketStatus @default(OPEN)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  messages  SupportMessage[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model SupportMessage {
+  id        String        @id @default(uuid()) @db.Uuid
+  ticketId  String        @db.Uuid
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String        @db.Uuid
+  body      String
+  createdAt DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+/// Append-only (DB trigger blocks UPDATE/DELETE).
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @db.Uuid
+  actorRole  String?
+  action     String
+  entityType String
+  entityId   String?
+  meta       Json?
+  ip         String?
+  requestId  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}
+
+// ───────────── Platform ─────────────
+model IdempotencyKey {
+  key        String
+  scope      String
+  requestHash String
+  response   Json?
+  status     Int?
+  createdAt  DateTime @default(now())
+
+  @@id([scope, key])
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  userId    String?  @db.Uuid
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  props     Json?
+  createdAt DateTime @default(now())
+
+  @@index([name, createdAt])
+}
+
+model Upload {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  ownerId   String   @db.Uuid
+  purpose   String
+  mime      String
+  bytes     Int
+  width     Int
+  height    Int
+  isPrivate Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([ownerId])
+}
