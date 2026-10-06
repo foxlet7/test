@@ -24,8 +24,17 @@ export class OrdersController {
   }
 
   @Post(':id/cancel')
-  cancel(@CurrentUser() u: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body(z$(cancelSchema)) b: z.infer<typeof cancelSchema>) {
-    return this.orders.customerTransition(u.id, id, 'CANCELLED', b.reason ?? 'Cancelled by customer');
+  cancel(
+    @CurrentUser() u: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(z$(cancelSchema)) b: z.infer<typeof cancelSchema>,
+  ) {
+    return this.orders.customerTransition(
+      u.id,
+      id,
+      'CANCELLED',
+      b.reason ?? 'Cancelled by customer',
+    );
   }
 
   /** Customer confirms receipt. */

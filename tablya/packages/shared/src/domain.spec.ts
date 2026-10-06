@@ -46,7 +46,10 @@ describe('order state machine', () => {
       grew = false;
       for (const s of [...reachable])
         for (const t of ORDER_TRANSITIONS[s as keyof typeof ORDER_TRANSITIONS])
-          if (!reachable.has(t.to)) { reachable.add(t.to); grew = true; }
+          if (!reachable.has(t.to)) {
+            reachable.add(t.to);
+            grew = true;
+          }
     }
     expect([...reachable].sort()).toEqual([...ORDER_STATUSES].sort());
   });
@@ -54,19 +57,35 @@ describe('order state machine', () => {
 
 describe('pricing', () => {
   it('computes totals with integer math', () => {
-    const r = computeTotals({ subtotal: 10000, deliveryFee: 1000, taxBps: 1500, serviceFeeBps: 500, discount: 1000 });
+    const r = computeTotals({
+      subtotal: 10000,
+      deliveryFee: 1000,
+      taxBps: 1500,
+      serviceFeeBps: 500,
+      discount: 1000,
+    });
     expect(r.serviceFee).toBe(450);
     expect(r.tax).toBe(Math.round(((9000 + 450 + 1000) * 1500) / 10000));
     expect(r.total).toBe(9000 + 450 + 1000 + r.tax);
     expect(Number.isInteger(r.total)).toBe(true);
   });
   it('never discounts below zero', () => {
-    const r = computeTotals({ subtotal: 500, deliveryFee: 0, taxBps: 0, serviceFeeBps: 0, discount: 9999 });
+    const r = computeTotals({
+      subtotal: 500,
+      deliveryFee: 0,
+      taxBps: 0,
+      serviceFeeBps: 0,
+      discount: 9999,
+    });
     expect(r.total).toBe(0);
   });
   it('rejects fractional/negative input', () => {
-    expect(() => computeTotals({ subtotal: 10.5, deliveryFee: 0, taxBps: 0, serviceFeeBps: 0, discount: 0 })).toThrow();
-    expect(() => computeTotals({ subtotal: -1, deliveryFee: 0, taxBps: 0, serviceFeeBps: 0, discount: 0 })).toThrow();
+    expect(() =>
+      computeTotals({ subtotal: 10.5, deliveryFee: 0, taxBps: 0, serviceFeeBps: 0, discount: 0 }),
+    ).toThrow();
+    expect(() =>
+      computeTotals({ subtotal: -1, deliveryFee: 0, taxBps: 0, serviceFeeBps: 0, discount: 0 }),
+    ).toThrow();
   });
   it('applies coupons with caps', () => {
     expect(couponDiscount(10000, 'PERCENT', 20)).toBe(2000);
@@ -75,7 +94,10 @@ describe('pricing', () => {
   });
   it('settlement always reconciles to the customer total', () => {
     for (const [subtotal, discount, deliveryFee, taxBps, serviceFeeBps, commissionBps] of [
-      [10000, 0, 1000, 1500, 0, 1500], [12345, 2000, 700, 1500, 300, 1200], [999, 999, 0, 500, 100, 2000], [50000, 100, 3333, 0, 0, 0],
+      [10000, 0, 1000, 1500, 0, 1500],
+      [12345, 2000, 700, 1500, 300, 1200],
+      [999, 999, 0, 500, 100, 2000],
+      [50000, 100, 3333, 0, 0, 0],
     ]) {
       const p = computeTotals({ subtotal, discount, deliveryFee, taxBps, serviceFeeBps });
       const s = settlement({ ...p, commissionBps });
@@ -100,11 +122,23 @@ describe('schedule', () => {
     expect(isWithinSchedule(slots, at(3), tz)).toBe(false);
   });
   it('derives availability states', () => {
-    const base = { slots: [{ dayOfWeek: 2, openMinute: 0, closeMinute: 1439 }], timezone: tz, acceptingOrders: true, activeOrderCount: 0, now: at(12) };
+    const base = {
+      slots: [{ dayOfWeek: 2, openMinute: 0, closeMinute: 1439 }],
+      timezone: tz,
+      acceptingOrders: true,
+      activeOrderCount: 0,
+      now: at(12),
+    };
     expect(kitchenAvailability(base)).toBe('OPEN');
-    expect(kitchenAvailability({ ...base, acceptingOrders: false })).toBe('TEMPORARILY_UNAVAILABLE');
-    expect(kitchenAvailability({ ...base, pausedUntil: new Date(at(12).getTime() + 1000) })).toBe('TEMPORARILY_UNAVAILABLE');
-    expect(kitchenAvailability({ ...base, maxConcurrentOrders: 3, activeOrderCount: 3 })).toBe('FULLY_BOOKED');
+    expect(kitchenAvailability({ ...base, acceptingOrders: false })).toBe(
+      'TEMPORARILY_UNAVAILABLE',
+    );
+    expect(kitchenAvailability({ ...base, pausedUntil: new Date(at(12).getTime() + 1000) })).toBe(
+      'TEMPORARILY_UNAVAILABLE',
+    );
+    expect(kitchenAvailability({ ...base, maxConcurrentOrders: 3, activeOrderCount: 3 })).toBe(
+      'FULLY_BOOKED',
+    );
     expect(kitchenAvailability({ ...base, slots: [] })).toBe('CLOSED');
   });
 });
@@ -127,11 +161,26 @@ describe('geo + i18n + validation', () => {
     expect(Object.keys(messages.ar).sort()).toEqual(Object.keys(messages.en).sort());
   });
   it('validates registration and checkout', () => {
-    expect(registerSchema.safeParse({ email: 'A@B.com', password: 'short', name: 'x' }).success).toBe(false);
+    expect(
+      registerSchema.safeParse({ email: 'A@B.com', password: 'short', name: 'x' }).success,
+    ).toBe(false);
     const ok = registerSchema.parse({ email: 'A@B.com', password: 'longenough1', name: 'x' });
     expect(ok.email).toBe('a@b.com');
     expect(ok.role).toBe('CUSTOMER');
-    expect(registerSchema.safeParse({ email: 'a@b.com', password: 'longenough1', name: 'x', role: 'ADMIN' }).success).toBe(false);
-    expect(checkoutSchema.safeParse({ fulfillment: 'DELIVERY', paymentMethod: 'CARD', expectedTotal: 1.5 }).success).toBe(false);
+    expect(
+      registerSchema.safeParse({
+        email: 'a@b.com',
+        password: 'longenough1',
+        name: 'x',
+        role: 'ADMIN',
+      }).success,
+    ).toBe(false);
+    expect(
+      checkoutSchema.safeParse({
+        fulfillment: 'DELIVERY',
+        paymentMethod: 'CARD',
+        expectedTotal: 1.5,
+      }).success,
+    ).toBe(false);
   });
 });

@@ -23,7 +23,8 @@ export const messages: Record<Locale, Dict> = {
     'auth.password': 'Password',
     'auth.name': 'Full name',
     'auth.deleteAccount': 'Delete my account',
-    'auth.deleteConfirm': 'This permanently anonymises your account. Orders are kept for legal records without your personal data.',
+    'auth.deleteConfirm':
+      'This permanently anonymises your account. Orders are kept for legal records without your personal data.',
     'home.greeting': 'Hello, {name}',
     'home.search': 'Search kitchens and dishes',
     'home.categories': 'Categories',
@@ -100,7 +101,8 @@ export const messages: Record<Locale, Dict> = {
     'auth.password': 'كلمة المرور',
     'auth.name': 'الاسم الكامل',
     'auth.deleteAccount': 'حذف حسابي',
-    'auth.deleteConfirm': 'سيتم إخفاء هوية حسابك نهائيًا. تُحفظ الطلبات للسجلات القانونية دون بياناتك الشخصية.',
+    'auth.deleteConfirm':
+      'سيتم إخفاء هوية حسابك نهائيًا. تُحفظ الطلبات للسجلات القانونية دون بياناتك الشخصية.',
     'home.greeting': 'مرحبًا، {name}',
     'home.search': 'ابحث عن مطابخ ووجبات',
     'home.categories': 'التصنيفات',

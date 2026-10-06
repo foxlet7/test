@@ -5,7 +5,12 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthGuard, RolesGuard } from './common/auth';
 import { CommonModule } from './common/common.module';
-import { AccessLogMiddleware, AllExceptionsFilter, EnvelopeInterceptor, RequestIdMiddleware } from './common/filters';
+import {
+  AccessLogMiddleware,
+  AllExceptionsFilter,
+  EnvelopeInterceptor,
+  RequestIdMiddleware,
+} from './common/filters';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CartModule } from './modules/cart/cart.module';
@@ -25,8 +30,20 @@ import { UsersModule } from './modules/users/users.module';
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.THROTTLE_LIMIT ?? 120) }]),
-    CommonModule, NotificationsModule, UploadsModule, CatalogModule, AuthModule, UsersModule,
-    OrdersModule, PaymentsModule, CheckoutModule, CartModule, CookModule, EngagementModule, AdminModule, HealthModule,
+    CommonModule,
+    NotificationsModule,
+    UploadsModule,
+    CatalogModule,
+    AuthModule,
+    UsersModule,
+    OrdersModule,
+    PaymentsModule,
+    CheckoutModule,
+    CartModule,
+    CookModule,
+    EngagementModule,
+    AdminModule,
+    HealthModule,
   ],
   providers: [
     // Order matters: throttle first, then authenticate, then authorise by role.

@@ -43,9 +43,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (cfg.NODE_ENV === 'production') {
     if (cfg.EXPOSE_DEV_OTP) throw new Error('EXPOSE_DEV_OTP must be false in production');
     if (cfg.PAYMENT_PROVIDER === 'sandbox')
-      throw new Error('PAYMENT_PROVIDER=sandbox is development-only; configure a real provider adapter');
+      throw new Error(
+        'PAYMENT_PROVIDER=sandbox is development-only; configure a real provider adapter',
+      );
     if (cfg.MESSAGE_PROVIDER === 'console')
-      throw new Error('MESSAGE_PROVIDER=console is development-only; configure real email/SMS adapters');
+      throw new Error(
+        'MESSAGE_PROVIDER=console is development-only; configure real email/SMS adapters',
+      );
     if (!cfg.REQUIRE_ADMIN_MFA) throw new Error('REQUIRE_ADMIN_MFA must be true in production');
   }
   if (Buffer.from(cfg.DATA_ENC_KEY, 'base64').length !== 32)

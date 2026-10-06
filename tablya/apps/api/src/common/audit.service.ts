@@ -19,6 +19,8 @@ export class AuditService {
 
   /** Pass `tx` to make the audit row part of the same transaction as the change. */
   async log(entry: AuditEntry, tx?: Prisma.TransactionClient) {
-    await (tx ?? this.prisma).auditLog.create({ data: { ...entry, meta: entry.meta ?? undefined } });
+    await (tx ?? this.prisma).auditLog.create({
+      data: { ...entry, meta: entry.meta ?? undefined },
+    });
   }
 }

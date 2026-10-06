@@ -24,7 +24,8 @@ export interface RefundResult {
   providerRef: string;
   status: 'succeeded' | 'pending' | 'failed';
 }
-export type ProviderEventType = 'payment.succeeded' | 'payment.failed' | 'refund.succeeded' | 'refund.failed';
+export type ProviderEventType =
+  'payment.succeeded' | 'payment.failed' | 'refund.succeeded' | 'refund.failed';
 export interface ProviderEvent {
   id: string;
   type: ProviderEventType;
@@ -42,7 +43,10 @@ export abstract class PaymentProvider {
   abstract initiate(p: InitiateParams): Promise<InitiateResult>;
   abstract refund(p: RefundParams): Promise<RefundResult>;
   /** Must authenticate the payload (signature) and return null when it is not authentic. */
-  abstract parseWebhook(rawBody: Buffer, headers: Record<string, string | string[] | undefined>): ProviderEvent | null;
+  abstract parseWebhook(
+    rawBody: Buffer,
+    headers: Record<string, string | string[] | undefined>,
+  ): ProviderEvent | null;
 }
 
 /**
@@ -58,19 +62,39 @@ export class SandboxPaymentProvider extends PaymentProvider {
   }
 
   async initiate(p: InitiateParams): Promise<InitiateResult> {
-    return { providerRef: `sbx_${randomUUID()}`, clientSession: { providerRef: '', mode: 'sandbox', amountMinor: String(p.amountMinor), currency: p.currency } };
+    return {
+      providerRef: `sbx_${randomUUID()}`,
+      clientSession: {
+        providerRef: '',
+        mode: 'sandbox',
+        amountMinor: String(p.amountMinor),
+        currency: p.currency,
+      },
+    };
   }
 
   async refund(p: RefundParams): Promise<RefundResult> {
     return { providerRef: `sbx_re_${p.idempotencyKey.slice(0, 24)}`, status: 'succeeded' };
   }
 
-  parseWebhook(rawBody: Buffer, headers: Record<string, string | string[] | undefined>): ProviderEvent | null {
+  parseWebhook(
+    rawBody: Buffer,
+    headers: Record<string, string | string[] | undefined>,
+  ): ProviderEvent | null {
     const sig = headers['x-tablya-signature'];
-    if (typeof sig !== 'string' || !safeEqual(sig, hmacHex(this.cfg.PAYMENT_WEBHOOK_SECRET, rawBody))) return null;
+    if (
+      typeof sig !== 'string' ||
+      !safeEqual(sig, hmacHex(this.cfg.PAYMENT_WEBHOOK_SECRET, rawBody))
+    )
+      return null;
     try {
       const e = JSON.parse(rawBody.toString('utf8'));
-      if (typeof e.id !== 'string' || typeof e.type !== 'string' || typeof e.providerRef !== 'string') return null;
+      if (
+        typeof e.id !== 'string' ||
+        typeof e.type !== 'string' ||
+        typeof e.providerRef !== 'string'
+      )
+        return null;
       return e as ProviderEvent;
     } catch {
       return null;

@@ -1,6 +1,7 @@
 // Loaded before every test file (jest setupFiles).
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ?? 'postgresql://tablya:tablya_dev@localhost:5432/tablya_test';
+process.env.DATABASE_URL =
+  process.env.TEST_DATABASE_URL ?? 'postgresql://tablya:tablya_dev@localhost:5432/tablya_test';
 process.env.JWT_ACCESS_SECRET = 'test-access-secret-test-access-secret-1234';
 process.env.DATA_ENC_KEY = Buffer.alloc(32, 7).toString('base64');
 process.env.PAYMENT_WEBHOOK_SECRET = 'test-webhook-secret-0123456789';

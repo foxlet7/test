@@ -8,11 +8,18 @@ import { PaymentProvider, SandboxPaymentProvider } from './provider';
 
 @Module({
   imports: [OrdersModule],
-  controllers: [PaymentsController, ...(process.env.PAYMENT_PROVIDER === 'sandbox' || !process.env.PAYMENT_PROVIDER ? [SandboxPaymentsController] : [])],
+  controllers: [
+    PaymentsController,
+    ...(process.env.PAYMENT_PROVIDER === 'sandbox' || !process.env.PAYMENT_PROVIDER
+      ? [SandboxPaymentsController]
+      : []),
+  ],
   providers: [
     SandboxPaymentProvider,
     { provide: PaymentProvider, useExisting: SandboxPaymentProvider },
-    PaymentsService, LedgerService, OrderEffectsService,
+    PaymentsService,
+    LedgerService,
+    OrderEffectsService,
   ],
   exports: [PaymentsService, LedgerService],
 })

@@ -1,5 +1,9 @@
 import { Global, Module } from '@nestjs/common';
-import { ConsoleMessageProvider, MessageProvider, NotificationsService } from './notifications.service';
+import {
+  ConsoleMessageProvider,
+  MessageProvider,
+  NotificationsService,
+} from './notifications.service';
 import { NotificationsController } from './notifications.controller';
 
 @Global()

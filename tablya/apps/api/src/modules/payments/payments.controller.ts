@@ -1,5 +1,5 @@
-import { Body, Controller, Headers, HttpCode, Param, Post, RawBodyRequest, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiExcludeController, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, HttpCode, Param, Post, RawBodyRequest, Req } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
@@ -16,9 +16,13 @@ export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
   /** Gateway → us. Authenticated by signature over the raw body, never by user token. */
-  @Public() @SkipThrottle() @HttpCode(200) @Post('webhooks/:provider')
+  @Public()
+  @SkipThrottle()
+  @HttpCode(200)
+  @Post('webhooks/:provider')
   webhook(@Param('provider') provider: string, @Req() req: RawBodyRequest<Request>) {
-    if (provider !== 'sandbox' || !req.rawBody) throw new AppError('NOT_FOUND', 'Unknown provider.');
+    if (provider !== 'sandbox' || !req.rawBody)
+      throw new AppError('NOT_FOUND', 'Unknown provider.');
     return this.payments.handleWebhook(req.rawBody, req.headers);
   }
 }
@@ -31,16 +35,30 @@ export class PaymentsController {
 @ApiBearerAuth()
 @Controller('payments/sandbox')
 export class SandboxPaymentsController {
-  constructor(private readonly payments: PaymentsService, private readonly provider: SandboxPaymentProvider, private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly payments: PaymentsService,
+    private readonly provider: SandboxPaymentProvider,
+    private readonly prisma: PrismaService,
+  ) {}
 
-  @HttpCode(200) @Post(':providerRef/complete')
-  async complete(@CurrentUser() u: AuthUser, @Param('providerRef') providerRef: string, @Body(z$(z.object({ outcome: z.enum(['success', 'fail']) }))) b: { outcome: 'success' | 'fail' }) {
-    const p = await this.prisma.payment.findFirst({ where: { providerRef, order: { customerId: u.id } } });
+  @HttpCode(200)
+  @Post(':providerRef/complete')
+  async complete(
+    @CurrentUser() u: AuthUser,
+    @Param('providerRef') providerRef: string,
+    @Body(z$(z.object({ outcome: z.enum(['success', 'fail']) })))
+    b: { outcome: 'success' | 'fail' },
+  ) {
+    const p = await this.prisma.payment.findFirst({
+      where: { providerRef, order: { customerId: u.id } },
+    });
     if (!p) throw new AppError('NOT_FOUND', 'Payment not found.');
     return this.payments.simulateProviderEvent((e) => this.provider.sign(e), {
       id: `evt_${providerRef}_${b.outcome}_${Date.now()}`,
       type: b.outcome === 'success' ? 'payment.succeeded' : 'payment.failed',
-      providerRef, amountMinor: p.amountMinor, reason: b.outcome === 'fail' ? 'card_declined' : undefined,
+      providerRef,
+      amountMinor: p.amountMinor,
+      reason: b.outcome === 'fail' ? 'card_declined' : undefined,
     });
   }
 }

@@ -46,7 +46,8 @@ export function computeTotals(i: PricingInput): PricingResult {
 }
 
 export function assertMinor(n: number, label: string): void {
-  if (!Number.isSafeInteger(n) || n < 0) throw new RangeError(`${label} must be a non-negative integer`);
+  if (!Number.isSafeInteger(n) || n < 0)
+    throw new RangeError(`${label} must be a non-negative integer`);
 }
 
 export type DiscountType = 'PERCENT' | 'FIXED';

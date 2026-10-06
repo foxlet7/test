@@ -93,19 +93,47 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = body.message;
         details = body.details;
       } else {
-        code = status === 404 ? 'NOT_FOUND' : status === 401 ? 'UNAUTHENTICATED' : status === 403 ? 'FORBIDDEN' : status === 400 ? 'VALIDATION_FAILED' : 'INTERNAL';
-        message = typeof body === 'string' ? body : Array.isArray(body?.message) ? body.message.join('; ') : (body?.message ?? message);
-        if (status === 413) { code = 'VALIDATION_FAILED'; message = 'Payload too large.'; }
+        code =
+          status === 404
+            ? 'NOT_FOUND'
+            : status === 401
+              ? 'UNAUTHENTICATED'
+              : status === 403
+                ? 'FORBIDDEN'
+                : status === 400
+                  ? 'VALIDATION_FAILED'
+                  : 'INTERNAL';
+        message =
+          typeof body === 'string'
+            ? body
+            : Array.isArray(body?.message)
+              ? body.message.join('; ')
+              : (body?.message ?? message);
+        if (status === 413) {
+          code = 'VALIDATION_FAILED';
+          message = 'Payload too large.';
+        }
       }
     } else if (isClientHttpError(exception)) {
       // body-parser / multer errors (payload too large, malformed JSON, ...) carry their own 4xx status
       status = exception.status ?? exception.statusCode!;
-      code = status === 413 ? 'VALIDATION_FAILED' : status === 404 ? 'NOT_FOUND' : 'VALIDATION_FAILED';
+      code =
+        status === 413 ? 'VALIDATION_FAILED' : status === 404 ? 'NOT_FOUND' : 'VALIDATION_FAILED';
       message = status === 413 ? 'Payload too large.' : 'Malformed request.';
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
-      if (exception.code === 'P2002') { status = 409; code = 'CONFLICT'; message = 'This record already exists.'; }
-      else if (exception.code === 'P2025') { status = 404; code = 'NOT_FOUND'; message = 'Not found.'; }
-      else if (exception.code === 'P2034') { status = 409; code = 'CONFLICT'; message = 'Concurrent update, please retry.'; }
+      if (exception.code === 'P2002') {
+        status = 409;
+        code = 'CONFLICT';
+        message = 'This record already exists.';
+      } else if (exception.code === 'P2025') {
+        status = 404;
+        code = 'NOT_FOUND';
+        message = 'Not found.';
+      } else if (exception.code === 'P2034') {
+        status = 409;
+        code = 'CONFLICT';
+        message = 'Concurrent update, please retry.';
+      }
     }
 
     if (status >= 500) {
@@ -134,14 +162,15 @@ export class EnvelopeInterceptor implements NestInterceptor {
   intercept(ctx: ExecutionContext, next: CallHandler) {
     if (ctx.getType() !== 'http') return next.handle();
     const req = ctx.switchToHttp().getRequest<Request>();
-    if (req.path.startsWith('/health') || req.path.startsWith('/readiness'))
-      return next.handle();
-    return next.handle().pipe(
-      map((data) =>
-        data && typeof data === 'object' && '__raw' in data
-          ? (data as any).__raw
-          : { success: true, data: data ?? null },
-      ),
-    );
+    if (req.path.startsWith('/health') || req.path.startsWith('/readiness')) return next.handle();
+    return next
+      .handle()
+      .pipe(
+        map((data) =>
+          data && typeof data === 'object' && '__raw' in data
+            ? (data as any).__raw
+            : { success: true, data: data ?? null },
+        ),
+      );
   }
 }

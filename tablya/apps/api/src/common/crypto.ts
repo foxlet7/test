@@ -1,4 +1,12 @@
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+  randomInt,
+  timingSafeEqual,
+} from 'crypto';
 
 export const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 export const randomToken = (bytes = 32) => randomBytes(bytes).toString('base64url');
@@ -35,7 +43,8 @@ export function base32Encode(buf: Buffer): string {
   let bits = '';
   for (const b of buf) bits += b.toString(2).padStart(8, '0');
   let out = '';
-  for (let i = 0; i < bits.length; i += 5) out += B32[parseInt(bits.slice(i, i + 5).padEnd(5, '0'), 2)];
+  for (let i = 0; i < bits.length; i += 5)
+    out += B32[parseInt(bits.slice(i, i + 5).padEnd(5, '0'), 2)];
   return out;
 }
 export function base32Decode(s: string): Buffer {

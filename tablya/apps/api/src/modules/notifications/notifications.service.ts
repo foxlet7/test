@@ -14,7 +14,9 @@ export abstract class MessageProvider {
 export class ConsoleMessageProvider extends MessageProvider {
   private readonly log = new Logger('messages');
   async sendEmail(to: string, subject: string, body: string) {
-    this.log.log(`[dev email] to=${to.replace(/(.{2}).*(@.*)/, '$1***$2')} subject="${subject}" body="${body}"`);
+    this.log.log(
+      `[dev email] to=${to.replace(/(.{2}).*(@.*)/, '$1***$2')} subject="${subject}" body="${body}"`,
+    );
   }
   async sendSms(to: string, body: string) {
     this.log.log(`[dev sms] to=${to.slice(0, 5)}*** body="${body}"`);
@@ -31,7 +33,13 @@ export class NotificationsService {
   ) {}
 
   /** In-app row (always) + push (if enabled & device registered & preference allows). Never throws. */
-  async notify(userId: string, type: string, titleKey: string, vars: Record<string, string | number> = {}, data?: Record<string, string>) {
+  async notify(
+    userId: string,
+    type: string,
+    titleKey: string,
+    vars: Record<string, string | number> = {},
+    data?: Record<string, string>,
+  ) {
     try {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
@@ -42,8 +50,16 @@ export class NotificationsService {
       const title = t(locale, titleKey, vars);
       await this.prisma.notification.create({ data: { userId, type, titleKey, title, data } });
       if (this.cfg.EXPO_PUSH_ENABLED && (user.notificationPref?.push ?? true)) {
-        const tokens = await this.prisma.deviceToken.findMany({ where: { userId }, select: { token: true } });
-        if (tokens.length) await this.sendExpoPush(tokens.map((x) => x.token), title, data);
+        const tokens = await this.prisma.deviceToken.findMany({
+          where: { userId },
+          select: { token: true },
+        });
+        if (tokens.length)
+          await this.sendExpoPush(
+            tokens.map((x) => x.token),
+            title,
+            data,
+          );
       }
     } catch (e) {
       this.log.warn(`notify failed: ${(e as Error).message}`);

@@ -9,12 +9,23 @@ export class KitchenAccess {
   constructor(private readonly prisma: PrismaService) {}
 
   async assertOwner(user: AuthUser, kitchenId: string) {
-    const k = await this.prisma.kitchen.findFirst({ where: { id: kitchenId, deletedAt: null, ...(hasRole(user, 'ADMIN', 'SUPER_ADMIN') ? {} : { ownerId: user.id }) } });
+    const k = await this.prisma.kitchen.findFirst({
+      where: {
+        id: kitchenId,
+        deletedAt: null,
+        ...(hasRole(user, 'ADMIN', 'SUPER_ADMIN') ? {} : { ownerId: user.id }),
+      },
+    });
     if (!k) throw new AppError('NOT_FOUND', 'Kitchen not found.');
     return k;
   }
 
   async ownedIds(userId: string): Promise<string[]> {
-    return (await this.prisma.kitchen.findMany({ where: { ownerId: userId, deletedAt: null }, select: { id: true } })).map((k) => k.id);
+    return (
+      await this.prisma.kitchen.findMany({
+        where: { ownerId: userId, deletedAt: null },
+        select: { id: true },
+      })
+    ).map((k) => k.id);
   }
 }

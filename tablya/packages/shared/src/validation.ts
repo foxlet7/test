@@ -6,10 +6,16 @@ export const passwordSchema = z
   .max(128)
   .refine((p) => /[a-z]/i.test(p) && /\d/.test(p), 'Password must contain letters and digits');
 
-export const phoneSchema = z.string().regex(/^\+[1-9]\d{7,14}$/, 'Use E.164 format, e.g. +9665XXXXXXXX');
+export const phoneSchema = z
+  .string()
+  .regex(/^\+[1-9]\d{7,14}$/, 'Use E.164 format, e.g. +9665XXXXXXXX');
 
 export const registerSchema = z.object({
-  email: z.string().email().max(254).transform((e) => e.toLowerCase()),
+  email: z
+    .string()
+    .email()
+    .max(254)
+    .transform((e) => e.toLowerCase()),
   password: passwordSchema,
   name: z.string().trim().min(1).max(80),
   phone: phoneSchema.optional(),
@@ -19,9 +25,15 @@ export const registerSchema = z.object({
 export type RegisterInput = z.infer<typeof registerSchema>;
 
 export const loginSchema = z.object({
-  email: z.string().email().transform((e) => e.toLowerCase()),
+  email: z
+    .string()
+    .email()
+    .transform((e) => e.toLowerCase()),
   password: z.string().min(1).max(128),
-  totp: z.string().regex(/^\d{6}$/).optional(),
+  totp: z
+    .string()
+    .regex(/^\d{6}$/)
+    .optional(),
 });
 
 export const addressSchema = z.object({

@@ -1,7 +1,10 @@
 const R = 6371;
 const rad = (d: number) => (d * Math.PI) / 180;
 
-export function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+export function haversineKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
   const dLat = rad(b.lat - a.lat);
   const dLng = rad(b.lng - a.lng);
   const h =

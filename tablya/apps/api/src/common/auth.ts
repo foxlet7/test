@@ -63,7 +63,10 @@ export class AuthGuard implements CanActivate {
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     if (ctx.getType() !== 'http') return true;
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [ctx.getHandler(), ctx.getClass()]);
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [
+      ctx.getHandler(),
+      ctx.getClass(),
+    ]);
     const req = ctx.switchToHttp().getRequest<AuthedRequest>();
     const header = req.headers.authorization;
     const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
@@ -82,7 +85,10 @@ export class AuthGuard implements CanActivate {
     } catch (e) {
       if (isPublic) return true;
       const expired = (e as Error).name === 'TokenExpiredError';
-      throw new AppError(expired ? 'TOKEN_EXPIRED' : 'UNAUTHENTICATED', expired ? 'Session expired.' : 'Invalid token.');
+      throw new AppError(
+        expired ? 'TOKEN_EXPIRED' : 'UNAUTHENTICATED',
+        expired ? 'Session expired.' : 'Invalid token.',
+      );
     }
 
     const user = await this.prisma.user.findUnique({
@@ -99,7 +105,12 @@ export class AuthGuard implements CanActivate {
     }
     // The session itself must still be live (logout / revoke-all).
     const session = await this.prisma.refreshToken.findFirst({
-      where: { familyId: claims.sid, userId: user.id, revokedAt: null, expiresAt: { gt: new Date() } },
+      where: {
+        familyId: claims.sid,
+        userId: user.id,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
       select: { id: true },
     });
     if (!session) {
@@ -116,7 +127,10 @@ export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
   canActivate(ctx: ExecutionContext): boolean {
     if (ctx.getType() !== 'http') return true;
-    const required = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [ctx.getHandler(), ctx.getClass()]);
+    const required = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
+      ctx.getHandler(),
+      ctx.getClass(),
+    ]);
     if (!required?.length) return true;
     const req = ctx.switchToHttp().getRequest<AuthedRequest>();
     const roles = (req.user?.roles ?? []) as Role[];
@@ -129,4 +143,5 @@ export class RolesGuard implements CanActivate {
   }
 }
 
-export const hasRole = (user: AuthUser, ...roles: Role[]) => user.roles.some((r) => roles.includes(r));
+export const hasRole = (user: AuthUser, ...roles: Role[]) =>
+  user.roles.some((r) => roles.includes(r));

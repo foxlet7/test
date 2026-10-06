@@ -4,5 +4,10 @@ import { PaymentsModule } from '../payments/payments.module';
 import { CookController } from './cook.controller';
 import { KitchenAccess } from './kitchen-access';
 
-@Module({ imports: [OrdersModule, PaymentsModule], controllers: [CookController], providers: [KitchenAccess], exports: [KitchenAccess] })
+@Module({
+  imports: [OrdersModule, PaymentsModule],
+  controllers: [CookController],
+  providers: [KitchenAccess],
+  exports: [KitchenAccess],
+})
 export class CookModule {}

@@ -1,0 +1,39 @@
+name: CI
+on:
+  push: { branches: [main, "claude/**"] }
+  pull_request:
+permissions: { contents: read }
+concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: tablya, POSTGRES_PASSWORD: tablya_dev, POSTGRES_DB: tablya_test }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tablya" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://tablya:tablya_dev@localhost:5432/tablya_test
+      TEST_DATABASE_URL: postgresql://tablya:tablya_dev@localhost:5432/tablya_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Unit + integration tests (migrations are applied from scratch by the test setup)
+        run: npm test
+      - run: npm run build
+      - name: Dependency audit (production deps, high severity)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: false
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+
+  # Deployment is intentionally manual: trigger the "release" workflow (protected environment) after verify is green.

@@ -26,15 +26,26 @@ export const ORDER_TRANSITIONED = 'order.transitioned';
  */
 @Injectable()
 export class OrderLifecycleService {
-  constructor(private readonly prisma: PrismaService, private readonly events: EventEmitter2) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: EventEmitter2,
+  ) {}
 
-  async transition(orderId: string, to: OrderStatus, actor: Actor, reason?: string): Promise<Order> {
+  async transition(
+    orderId: string,
+    to: OrderStatus,
+    actor: Actor,
+    reason?: string,
+  ): Promise<Order> {
     const run = async (tx: Prisma.TransactionClient) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new AppError('NOT_FOUND', 'Order not found.');
       const from = order.status;
       if (!canTransition(from, to, actor.type)) {
-        throw new AppError('ILLEGAL_TRANSITION', `Cannot move an order from ${from} to ${to}.`, { from, to });
+        throw new AppError('ILLEGAL_TRANSITION', `Cannot move an order from ${from} to ${to}.`, {
+          from,
+          to,
+        });
       }
       const now = new Date();
       const claimed = await tx.order.updateMany({
@@ -47,32 +58,66 @@ export class OrderLifecycleService {
           ...(to === 'CANCELLED' || to === 'REJECTED' ? { cancelReason: reason ?? null } : {}),
         },
       });
-      if (claimed.count !== 1) throw new AppError('ILLEGAL_TRANSITION', 'This order was just updated by someone else. Refresh and try again.');
-      await tx.orderStatusHistory.create({ data: { orderId, fromStatus: from, toStatus: to, actorType: actor.type, actorId: actor.id ?? null, reason } });
+      if (claimed.count !== 1)
+        throw new AppError(
+          'ILLEGAL_TRANSITION',
+          'This order was just updated by someone else. Refresh and try again.',
+        );
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          fromStatus: from,
+          toStatus: to,
+          actorType: actor.type,
+          actorId: actor.id ?? null,
+          reason,
+        },
+      });
 
       if (to === 'CANCELLED' || to === 'REJECTED') await this.unwind(tx, order);
       if (to === 'COMPLETED') {
-        const items = await tx.orderItem.findMany({ where: { orderId, menuItemId: { not: null } } });
-        for (const i of items) await tx.menuItem.updateMany({ where: { id: i.menuItemId! }, data: { soldCount: { increment: i.quantity } } });
+        const items = await tx.orderItem.findMany({
+          where: { orderId, menuItemId: { not: null } },
+        });
+        for (const i of items)
+          await tx.menuItem.updateMany({
+            where: { id: i.menuItemId! },
+            data: { soldCount: { increment: i.quantity } },
+          });
       }
       return { order: { ...order, status: to }, from };
     };
 
     const { order, from } = await this.prisma.$transaction(run);
     // Listeners (notifications, refunds, ledger) run after commit and must not fail the transition.
-    await this.events.emitAsync(ORDER_TRANSITIONED, { orderId, from, to, actor, reason } satisfies TransitionEvent);
+    await this.events.emitAsync(ORDER_TRANSITIONED, {
+      orderId,
+      from,
+      to,
+      actor,
+      reason,
+    } satisfies TransitionEvent);
     return order;
   }
 
   /** Restore reserved stock and release coupon usage. */
   private async unwind(tx: Prisma.TransactionClient, order: Order) {
-    const items = await tx.orderItem.findMany({ where: { orderId: order.id, menuItemId: { not: null } } });
+    const items = await tx.orderItem.findMany({
+      where: { orderId: order.id, menuItemId: { not: null } },
+    });
     for (const i of items) {
-      await tx.menuItem.updateMany({ where: { id: i.menuItemId!, stock: { not: null } }, data: { stock: { increment: i.quantity } } });
+      await tx.menuItem.updateMany({
+        where: { id: i.menuItemId!, stock: { not: null } },
+        data: { stock: { increment: i.quantity } },
+      });
     }
     if (order.couponId) {
       const red = await tx.couponRedemption.deleteMany({ where: { orderId: order.id } });
-      if (red.count) await tx.coupon.update({ where: { id: order.couponId }, data: { usedCount: { decrement: 1 } } });
+      if (red.count)
+        await tx.coupon.update({
+          where: { id: order.couponId },
+          data: { usedCount: { decrement: 1 } },
+        });
     }
   }
 }
