@@ -34,8 +34,9 @@ Object.assign(window.NOC_CONFIG, {
       { id: 2844, label: '(058) Alibaba' },
       { id: 2927, label: '(065) ALULA-office-2' },
       { id: 2879, label: '(059) Alula Office' },
-      // Matched by name (no sensor ID yet): any '(118) Badael...' sensor on the FortiGate-121G HQ
-      { sensor: '/\\(118\\)\\s*Badael/', device: '121G', label: '(118) Badael-WAN' },
+      // Firewall policy 118 (SNMP Custom Advanced sensor). Matched by name until it has an ID:
+      // any sensor with "Badael" in its name on the FortiGate-121G HQ.
+      { sensor: '/Badael/', device: '121G', label: 'Badael-WAN (policy 118)' },
     ] },
     { title: 'Laban Links', items: [
       { id: 3158, label: '(002) STC' },
