@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { CONSENT_TYPES, TRADITIONS, type Language, type Tradition } from '@gdc/shared';
 import { api } from '../api';
 import { Body, Button, Card, Chip, Disclaimer, Field, H1, H2, Row, Screen, Toggle } from '../components/ui';
+import { DEMO } from '../config';
 import { useLang } from '../i18n';
 import { useSession } from '../session';
 
@@ -50,6 +51,7 @@ export default function Me() {
   return (
     <Screen>
       <H1>{t('me.title')}</H1>
+      {DEMO && <Card><Body small tone="warn">{t('demo.banner')}</Body></Card>}
       <Card>
         <Field label={t('me.pseudonym')} value={nick} onChangeText={setNick} autoCapitalize="none" />
         <Button kind="secondary" title={t('common.save')} onPress={() => patch({ pseudonym: nick.trim() })} />

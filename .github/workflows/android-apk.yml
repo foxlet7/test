@@ -1,15 +1,24 @@
 name: android-apk
-# Builds an installable test APK (debug-keystore signed — for testing only, NOT for Play Store upload).
-# Run from the Actions tab: "Run workflow" and give the HTTPS URL of a reachable API.
+# Builds an installable Android test APK and publishes it as a GitHub Release asset.
+# - Default (no api_url): DEMO build — runs fully on the phone, no server needed.
+# - With api_url (HTTPS): talks to that backend.
+# Signed with the debug keystore: for testing only, NOT for Play Store upload.
 on:
   workflow_dispatch:
     inputs:
       api_url:
-        description: "HTTPS base URL of the API the app will talk to (e.g. https://abc.trycloudflare.com)"
-        required: true
+        description: "Optional HTTPS API URL. Leave empty for the self-contained demo build."
+        required: false
+        default: ""
+  push:
+    branches: [claude/cool-hopper-kl2v2g]
+    paths: ["apps/mobile/**", "packages/shared/**", ".github/workflows/android-apk.yml"]
+permissions:
+  contents: write
 jobs:
   apk:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,13 +31,25 @@ jobs:
         working-directory: apps/mobile
         run: npx expo prebuild --platform android --no-install
         env: { EXPO_NO_TELEMETRY: "1", CI: "1" }
-      - name: Build release APK
+      - name: Build release APK (arm64)
         working-directory: apps/mobile/android
-        run: ./gradlew assembleRelease --no-daemon
+        run: |
+          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g" >> gradle.properties
+          ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
         env:
-          EXPO_PUBLIC_API_URL: ${{ inputs.api_url }}
           NODE_ENV: production
+          EXPO_PUBLIC_API_URL: ${{ inputs.api_url }}
+          EXPO_PUBLIC_DEMO: ${{ inputs.api_url == '' && '1' || '0' }}
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          cp apps/mobile/android/app/build/outputs/apk/release/*.apk out/good-deeds-companion.apk
+          ls -la out
       - uses: actions/upload-artifact@v4
-        with:
-          name: good-deeds-companion-apk
-          path: apps/mobile/android/app/build/outputs/apk/release/*.apk
+        with: { name: good-deeds-companion-apk, path: out/good-deeds-companion.apk }
+      - name: Publish release
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          TAG="apk-${{ github.run_number }}"
+          gh release create "$TAG" out/good-deeds-companion.apk --title "Test APK #${{ github.run_number }}" --prerelease \
+            --notes "Debug-signed test build (commit ${GITHUB_SHA::7}). Demo mode unless built with an API URL. Install by allowing 'unknown sources' on Android."

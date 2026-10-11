@@ -17,6 +17,8 @@ export const en = {
     'Points are a game mechanic that recognizes recorded activity and consistency. They do not measure your faith, sincerity, righteousness, or reward from God.',
   'disclaimer.verification':
     'Verification only confirms the specific, published criteria that were checked. It is not a judgment of your faith.',
+  'demo.banner':
+    'DEMO MODE: everything runs on this phone, no server. Rankings include fictional people, and a simulated reviewer answers about 6 seconds after you submit a recitation (the first attempt returns “unable to verify” so you can try an appeal).',
   'disclaimer.content':
     'Activity descriptions are reviewed by volunteers and advisers, but this app is not endorsed by any religious authority.',
   'auth.login': 'Sign in',
@@ -158,6 +160,8 @@ export const ar: Record<I18nKey, string> = {
     'النقاط آلية لعبة تقدّر النشاط المسجَّل والمواظبة. وهي لا تقيس إيمانك أو إخلاصك أو صلاحك أو جزاءك عند الله.',
   'disclaimer.verification':
     'التحقق يؤكد فقط المعايير المنشورة المحددة التي تمّ فحصها، وليس حكمًا على إيمانك.',
+  'demo.banner':
+    'وضع تجريبي: كل شيء يعمل على هذا الهاتف بلا خادم. يضم الترتيب أشخاصًا وهميين، ويردّ مراجع محاكى بعد نحو ٦ ثوانٍ من إرسال التلاوة (المحاولة الأولى تعيد «تعذّر التحقق» لتجرّب الطعن).',
   'disclaimer.content':
     'تتم مراجعة أوصاف الأنشطة من قبل متطوعين ومستشارين، لكن التطبيق غير معتمد من أي جهة دينية.',
   'auth.login': 'تسجيل الدخول',

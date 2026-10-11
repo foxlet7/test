@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { Language, Tradition } from '@gdc/shared';
 import { ApiError } from '../api';
-import { Body, Button, Chip, Disclaimer, Field, H1, Row, Screen, Toggle } from '../components/ui';
+import { Body, Card, Button, Chip, Disclaimer, Field, H1, Row, Screen, Toggle } from '../components/ui';
+import { DEMO } from '../config';
 import { errorKey, useLang } from '../i18n';
 import { useSession } from '../session';
 
@@ -34,6 +35,7 @@ export default function Auth() {
     <Screen>
       <H1>{t('app.name')}</H1>
       <Body muted>{t('onboarding.body')}</Body>
+      {DEMO && <Card><Body small tone="warn">{t('demo.banner')}</Body></Card>}
       <Row>
         {(['en', 'ar'] as Language[]).map((l) => <Chip key={l} title={l === 'en' ? 'English' : 'العربية'} selected={lang === l} onPress={() => setLang(l)} />)}
       </Row>

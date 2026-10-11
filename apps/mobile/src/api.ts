@@ -1,9 +1,9 @@
 import * as SecureStore from 'expo-secure-store';
-import { API_URL } from './config';
+import { API_URL, DEMO } from './config';
+import { demoApi, demoAuth } from './demoApi';
+import { ApiError } from './errors';
 
-export class ApiError extends Error {
-  constructor(public status: number, public code: string) { super(code); }
-}
+export { ApiError };
 
 export interface Session { accessToken: string; refreshToken: string; userId: string }
 const KEY = 'gdc_session';
@@ -45,6 +45,7 @@ async function refresh(): Promise<boolean> {
 }
 
 export async function api<T = any>(path: string, opts: { method?: string; json?: unknown; form?: FormData } = {}): Promise<T> {
+  if (DEMO) return demoApi(path, opts) as Promise<T>;
   const init: RequestInit = { method: opts.method ?? (opts.json || opts.form ? 'POST' : 'GET') };
   if (opts.json !== undefined) init.body = JSON.stringify(opts.json);
   if (opts.form) init.body = opts.form as any;
@@ -60,6 +61,7 @@ export async function api<T = any>(path: string, opts: { method?: string; json?:
 }
 
 export async function authCall(path: '/auth/login' | '/auth/register', body: unknown): Promise<Session> {
+  if (DEMO) { const s = await demoAuth(path, body); await saveSession(s); return s; }
   const r = await rawFetch(path, { method: 'POST', body: JSON.stringify(body) });
   const j = await r.json().catch(() => null);
   if (!r.ok) throw new ApiError(r.status, j?.error?.code ?? 'error');
@@ -69,6 +71,6 @@ export async function authCall(path: '/auth/login' | '/auth/register', body: unk
 }
 
 export async function signOutRemote() {
-  if (session) await rawFetch('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken: session.refreshToken }) }).catch(() => {});
+  if (session && !DEMO) await rawFetch('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken: session.refreshToken }) }).catch(() => {});
   await saveSession(null);
 }
