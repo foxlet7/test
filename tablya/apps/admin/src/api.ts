@@ -20,6 +20,8 @@ export interface Session {
   accessToken: string;
   refreshToken: string;
   user: { id: string; name: string; roles: string[]; email: string | null };
+  /** Staff must enrol an authenticator before the console unlocks. */
+  mfaSetup?: boolean;
 }
 
 // sessionStorage (not localStorage): the session dies with the tab, which suits a privileged console.
@@ -45,7 +47,7 @@ let refreshing: Promise<boolean> | null = null;
 let onLogout: () => void = () => undefined;
 export const setLogoutHandler = (fn: () => void) => (onLogout = fn);
 
-async function refresh(): Promise<boolean> {
+export async function refresh(): Promise<boolean> {
   const s = sessionStore.get();
   if (!s) return false;
   refreshing ??= fetch(`${BASE}/auth/refresh`, {

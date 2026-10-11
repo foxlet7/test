@@ -7,6 +7,7 @@ import { Catalog } from './pages/Catalog';
 import { Dashboard } from './pages/Dashboard';
 import { KitchenDetail, Kitchens } from './pages/Kitchens';
 import { Login } from './pages/Login';
+import { MfaSetup } from './pages/MfaSetup';
 import { Marketing } from './pages/Marketing';
 import { Moderation } from './pages/Moderation';
 import { OrderDetail, Orders } from './pages/Orders';
@@ -17,7 +18,8 @@ import { Users } from './pages/Users';
 
 function Guard({ children }: { children: ReactElement }) {
   const { session } = useAuth();
-  return session ? children : <Navigate to="/login" replace />;
+  if (!session) return <Navigate to="/login" replace />;
+  return session.mfaSetup ? <MfaSetup /> : children;
 }
 
 // Route visibility mirrors the server's RBAC for UX only; every API call is authorised server-side.

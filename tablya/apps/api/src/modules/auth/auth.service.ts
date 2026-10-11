@@ -128,9 +128,6 @@ export class AuthService {
       throw new AppError('ACCOUNT_SUSPENDED', 'This account is suspended.');
 
     const isStaff = user.roles.some((r) => STAFF_ROLES.includes(r));
-    if (isStaff && this.cfg.REQUIRE_ADMIN_MFA && !user.totpEnabled) {
-      throw new AppError('MFA_REQUIRED', 'Staff accounts must enable two-factor authentication.');
-    }
     if (user.totpEnabled) {
       if (!totp) throw new AppError('MFA_REQUIRED', 'Enter your authenticator code.');
       if (
@@ -152,11 +149,17 @@ export class AuthService {
         entityId: user.id,
         ip: meta.ip,
       });
-    return { user: publicUser(user), tokens: await this.startSession(user, meta) };
+    // Staff who still have to enrol get a restricted session (see AuthGuard) that can only set up MFA.
+    const mfaSetupRequired = isStaff && this.cfg.REQUIRE_ADMIN_MFA && !user.totpEnabled;
+    return {
+      user: publicUser(user),
+      tokens: await this.startSession(user, meta),
+      ...(mfaSetupRequired ? { mfaSetupRequired: true } : {}),
+    };
   }
 
   private async startSession(
-    user: Pick<User, 'id' | 'roles'>,
+    user: Pick<User, 'id' | 'roles' | 'totpEnabled'>,
     meta: ClientMeta,
     familyId: string = randomUUID(),
   ): Promise<Tokens> {
@@ -172,7 +175,12 @@ export class AuthService {
       },
     });
     return {
-      accessToken: signAccess(this.cfg, { sub: user.id, roles: user.roles, sid: familyId }),
+      accessToken: signAccess(this.cfg, {
+        sub: user.id,
+        roles: user.roles,
+        sid: familyId,
+        mfa: user.totpEnabled,
+      }),
       refreshToken,
       expiresIn: this.cfg.ACCESS_TTL_SECONDS,
     };

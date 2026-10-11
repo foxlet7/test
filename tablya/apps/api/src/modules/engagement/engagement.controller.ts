@@ -166,17 +166,15 @@ export class EngagementController {
       include: { customer: { select: { name: true } } },
     });
     return {
-      items: rows
-        .slice(0, 20)
-        .map((r) => ({
-          id: r.id,
-          rating: r.rating,
-          text: r.text,
-          imageUrls: r.imageKeys.map((k) => this.uploads.url(k)),
-          author: r.customer.name,
-          createdAt: r.createdAt,
-          edited: !!r.editedAt,
-        })),
+      items: rows.slice(0, 20).map((r) => ({
+        id: r.id,
+        rating: r.rating,
+        text: r.text,
+        imageUrls: r.imageKeys.map((k) => this.uploads.url(k)),
+        author: r.customer.name,
+        createdAt: r.createdAt,
+        edited: !!r.editedAt,
+      })),
       nextCursor: rows.length > 20 ? rows[19].id : null,
     };
   }

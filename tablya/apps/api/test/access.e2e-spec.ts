@@ -349,7 +349,14 @@ describe('Uploads', () => {
         ]),
         'broken.png',
       ],
-      ['valid header, corrupt pixel data', await (async () => { const good = await h.png(400, 400); return Buffer.concat([good.subarray(0, 120), Buffer.alloc(300, 0xab)]); })(), 'corrupt.png'],
+      [
+        'valid header, corrupt pixel data',
+        await (async () => {
+          const good = await h.png(400, 400);
+          return Buffer.concat([good.subarray(0, 120), Buffer.alloc(300, 0xab)]);
+        })(),
+        'corrupt.png',
+      ],
       ['too small', await h.png(10, 10), 'tiny.png'],
     ];
     for (const [label, buf, name] of cases) {

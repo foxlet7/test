@@ -18,6 +18,7 @@ interface AuthCtx {
   can(...roles: string[]): boolean;
   login(email: string, password: string, totp?: string): Promise<void>;
   logout(): Promise<void>;
+  completeMfaSetup(): void;
 }
 const Ctx = createContext<AuthCtx>(null as unknown as AuthCtx);
 export const useAuth = () => useContext(Ctx);
@@ -61,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const r = await api<{
       user: Session['user'];
       tokens: { accessToken: string; refreshToken: string };
+      mfaSetupRequired?: boolean;
     }>('/auth/login', {
       method: 'POST',
       body: { email, password, ...(totp ? { totp } : {}) },
@@ -74,17 +76,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }).catch(() => undefined);
       throw Object.assign(new Error('staff-only'), { staffOnly: true });
     }
-    const s = {
+    const s: Session = {
       accessToken: r.tokens.accessToken,
       refreshToken: r.tokens.refreshToken,
       user: r.user,
+      ...(r.mfaSetupRequired ? { mfaSetup: true } : {}),
     };
     sessionStore.set(s);
     setSession(s);
   }, []);
 
+  const completeMfaSetup = useCallback(() => {
+    const cur = sessionStore.get();
+    if (!cur) return;
+    const next = { ...cur, mfaSetup: false };
+    sessionStore.set(next);
+    setSession(next);
+  }, []);
+
   const roles = session?.user.roles ?? [];
   const can = (...want: string[]) =>
     roles.includes('SUPER_ADMIN') || want.some((w) => roles.includes(w));
-  return <Ctx.Provider value={{ session, roles, can, login, logout }}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={{ session, roles, can, login, logout, completeMfaSetup }}>
+      {children}
+    </Ctx.Provider>
+  );
 }

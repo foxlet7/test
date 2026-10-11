@@ -291,3 +291,52 @@ describe('Authentication & account lifecycle', () => {
     expect(r.body.checks.database.ok).toBe(true);
   });
 });
+
+describe('Mandatory staff MFA (REQUIRE_ADMIN_MFA=true)', () => {
+  const h = new Harness();
+  beforeAll(async () => {
+    process.env.REQUIRE_ADMIN_MFA = 'true';
+    await h.start();
+  });
+  afterAll(async () => {
+    await h.stop();
+    delete process.env.REQUIRE_ADMIN_MFA;
+  });
+
+  it('un-enrolled staff get a restricted session that can only enrol, so the setting cannot lock everyone out', async () => {
+    const s = await h.createStaff(['ADMIN']);
+    const login = await h.req().post('/auth/login').send({ email: s.email, password: s.password });
+    expect(login.status).toBe(200);
+    expect(login.body.data.mfaSetupRequired).toBe(true);
+    const token = login.body.data.tokens.accessToken;
+    const blocked = await h.call('get', '/admin/dashboard', token);
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error.details).toEqual({ mfaSetupRequired: true });
+
+    const enroll = await h.call('post', '/auth/totp/enroll', token);
+    expect(enroll.status).toBe(200);
+    const activate = await h.call('post', '/auth/totp/activate', token, {
+      code: await h.totpCode(enroll.body.data.secret),
+    });
+    expect(activate.status).toBe(200);
+    // the old token is still MFA-less; a refresh (proof of the second factor was just given) upgrades the session
+    expect((await h.call('get', '/admin/dashboard', token)).status).toBe(403);
+    const refreshed = await h
+      .req()
+      .post('/auth/refresh')
+      .send({ refreshToken: login.body.data.tokens.refreshToken });
+    expect((await h.call('get', '/admin/dashboard', refreshed.body.data.accessToken)).status).toBe(
+      200,
+    );
+    // subsequent logins demand the code
+    expect(
+      (await h.req().post('/auth/login').send({ email: s.email, password: s.password })).body.error
+        .code,
+    ).toBe('MFA_REQUIRED');
+  });
+
+  it('non-staff users are unaffected', async () => {
+    const u = await h.register();
+    expect((await h.call('get', '/me', u.token)).status).toBe(200);
+  });
+});

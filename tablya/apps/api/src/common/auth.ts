@@ -38,7 +38,12 @@ export interface AccessClaims {
   sub: string;
   roles: Role[];
   sid: string;
+  /** True when the session was established with a verified second factor. */
+  mfa?: boolean;
 }
+
+/** A staff session without MFA may only enrol/log out when MFA is mandatory (bootstrap path, otherwise nobody could ever enrol). */
+const MFA_BOOTSTRAP_PATHS = ['/auth/totp/', '/auth/logout', '/auth/refresh', '/me'];
 
 export function signAccess(cfg: AppConfig, claims: AccessClaims): string {
   return jwt.sign(claims, cfg.JWT_ACCESS_SECRET, {
@@ -116,6 +121,17 @@ export class AuthGuard implements CanActivate {
     if (!session) {
       if (isPublic) return true;
       throw new AppError('UNAUTHENTICATED', 'Session ended.');
+    }
+    const isStaff = user.roles.some((r) => STAFF_ROLES.includes(r));
+    if (
+      isStaff &&
+      this.cfg.REQUIRE_ADMIN_MFA &&
+      !claims.mfa &&
+      !MFA_BOOTSTRAP_PATHS.some((p) => req.path === p || req.path.startsWith(p))
+    ) {
+      throw new AppError('FORBIDDEN', 'Set up two-factor authentication to continue.', {
+        mfaSetupRequired: true,
+      });
     }
     req.user = { id: user.id, roles: user.roles, sid: claims.sid };
     return true;
