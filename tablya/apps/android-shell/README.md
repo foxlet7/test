@@ -11,7 +11,7 @@ It talks to **your own Tablya API**, which you enter on first launch.
 ## Install
 1. Copy `tablya-test.apk` to the phone (USB, Drive, `adb install tablya-test.apk`, or download it from the repo).
 2. Open it. Android asks to allow **"Install unknown apps"** for your file manager/browser — allow it. Play Protect may warn about an unknown developer (test-signed build): choose *Install anyway*.
-3. Min Android 7.0 (API 24).
+3. Min Android 5.0 (API 21); the APK carries v1+v2+v3 signatures so old and new phones can verify it.
 
 ## Run a backend the phone can reach
 On a computer on the **same Wi-Fi** as the phone:

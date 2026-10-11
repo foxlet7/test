@@ -36,7 +36,7 @@ PY
 
 echo "→ packaging manifest, resources and assets (aapt)"
 aapt package -f -M AndroidManifest.xml -S res -A "$OUT/assets" -I tools/android.jar \
-  --min-sdk-version 24 --target-sdk-version 34 --ignore-assets '!.svn:!.git' -F "$OUT/base.apk"
+  --min-sdk-version 21 --target-sdk-version 34 --ignore-assets '!.svn:!.git' -F "$OUT/base.apk"
 
 echo "→ compiling Java"
 javac -Xlint:-options --release 8 -cp tools/android.jar -d "$OUT/classes" $(find src -name '*.java')
