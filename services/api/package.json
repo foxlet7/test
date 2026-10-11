@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
-    "build": "tsup src/server.ts --format esm --target node22 --noExternal @gdc/shared --out-dir dist && cp -r src/migrations dist/migrations",
+    "build": "tsup && rm -rf dist/migrations && cp -r src/migrations dist/migrations",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "seed:demo": "tsx src/seed/demo.ts"
+    "seed:demo": "tsx src/seed/demo.ts",
+    "staff:create": "node dist/create-staff.js"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
@@ -21,6 +22,7 @@
     "vitest": "^2.1.0"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1149.0",
     "@electric-sql/pglite": "^0.5.8",
     "@fastify/cors": "^11.3.1",
     "@fastify/multipart": "^10.1.3",

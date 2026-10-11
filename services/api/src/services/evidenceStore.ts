@@ -43,7 +43,7 @@ export class S3Store implements BlobStore {
   constructor(private bucket: string, private region?: string, private endpoint?: string) {}
   private async c() {
     if (!this.client) {
-      const mod = await import('@aws-sdk/client-s3' as string);
+      const mod = await import('@aws-sdk/client-s3');
       this.mods = mod;
       this.client = new mod.S3Client({ region: this.region, endpoint: this.endpoint, forcePathStyle: !!this.endpoint });
     }
