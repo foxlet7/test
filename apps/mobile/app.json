@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Good Deeds Companion",
+    "slug": "good-deeds-companion",
+    "version": "0.1.0",
+    "scheme": "gooddeeds",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "app.gooddeeds.companion",
+      "supportsTablet": false,
+      "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
+    },
+    "android": {
+      "package": "app.gooddeeds.companion",
+      "permissions": ["RECORD_AUDIO"],
+      "allowBackup": false
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-localization",
+      ["expo-audio", { "microphonePermission": "The microphone is used only when you choose to record a recitation for review. Recordings are private and deleted soon after the decision." }],
+      ["expo-notifications", { "color": "#1f6f5c" }]
+    ],
+    "extra": { "apiUrl": "http://localhost:8080" }
+  }
+}
