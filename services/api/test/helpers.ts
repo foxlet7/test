@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import pg from 'pg';
 import type { Role } from '@gdc/shared';
 import { buildApp } from '../src/app';
 import { bootstrap } from '../src/bootstrap';
@@ -27,7 +28,21 @@ export const PW = 'correct-horse-battery';
 
 export async function harness(opts: { provider?: AssessmentProvider; cfg?: Partial<Config> } = {}): Promise<Harness> {
   const cfg = loadConfig({ env: 'test', rateLimit: false, evidenceBackend: 'memory', ...opts.cfg });
-  const db = await openDb({ databaseUrl: null, pgliteDir: null, env: 'test' });
+  // Set TEST_PG_ADMIN_URL to run the whole suite against a real PostgreSQL server (one throwaway database per harness).
+  let dbName: string | null = null;
+  let databaseUrl: string | null = null;
+  const adminUrl = process.env.TEST_PG_ADMIN_URL;
+  if (adminUrl) {
+    dbName = `gdc_t_${process.pid}_${Math.random().toString(36).slice(2, 8)}`;
+    const admin = new pg.Client({ connectionString: adminUrl });
+    await admin.connect();
+    await admin.query(`create database ${dbName}`);
+    await admin.end();
+    const u = new URL(adminUrl);
+    u.pathname = `/${dbName}`;
+    databaseUrl = u.toString();
+  }
+  const db = await openDb({ databaseUrl, pgliteDir: null, env: 'test' });
   await bootstrap(db);
   await seedCatalogue(db);
   await db.query("insert into invites(code, max_uses) values ('TESTINVITE', 1000)");
@@ -70,7 +85,16 @@ export async function harness(opts: { provider?: AssessmentProvider; cfg?: Parti
                 ('t-christ','christianity.bible.memorize_milestone','christianity','Task','مهمة','ref','ed','[{"criterion":"x","required":true}]','approved',$2,now())`, [imam, pastor]);
       return { imam, pastor };
     },
-    async close() { await app.close(); await db.close(); },
+    async close() {
+      await app.close();
+      await db.close();
+      if (dbName && adminUrl) {
+        const admin = new pg.Client({ connectionString: adminUrl });
+        await admin.connect();
+        await admin.query(`drop database if exists ${dbName} with (force)`);
+        await admin.end();
+      }
+    },
   };
   return h;
 }

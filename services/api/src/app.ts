@@ -36,6 +36,7 @@ export async function buildApp(opts: BuildOpts): Promise<FastifyInstance> {
   const app = Fastify({
     logger: opts.logger ? { level: 'info', redact: ['req.headers.authorization', 'req.headers.cookie'] } : false,
     bodyLimit: 1_048_576,
+    routerOptions: { maxParamLength: 512 },
     trustProxy: true,
   });
 
