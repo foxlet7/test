@@ -56,6 +56,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       retry: false,
     });
     if (!r.user.roles.some((x) => STAFF.includes(x))) {
+      // Don't leave a live customer session behind on the server.
+      await fetch(`${import.meta.env.VITE_API_URL ?? '/api'}/auth/logout`, { method: 'POST', headers: { authorization: `Bearer ${r.tokens.accessToken}` } }).catch(() => undefined);
       throw Object.assign(new Error('staff-only'), { staffOnly: true });
     }
     const s = { accessToken: r.tokens.accessToken, refreshToken: r.tokens.refreshToken, user: r.user };
