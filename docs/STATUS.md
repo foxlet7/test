@@ -24,3 +24,6 @@
 4. **Device QA** on iOS and Android in Arabic and English (RTL, VoiceOver/TalkBack, microphone permission flows); EAS build profiles, app icons/screenshots; Apple/Google developer accounts.
 5. **If AI assessment is wanted:** vendor review (no training, retention, region), labelled benchmark set, run `tools/benchmark.ts`, set thresholds with reviewers, then a human enables the flag.
 6. **Budget & staffing:** review SLA and cost per verified submission; invite codes and pilot recruitment per `PILOT_PROTOCOL.md`.
+
+## Getting a test APK
+No APK is checked in (the authoring sandbox cannot reach the Android SDK or Expo's build service). Build one on GitHub: **Actions → android-apk → Run workflow**, passing the **HTTPS** URL of an API the phone can reach (production builds refuse `http://`). Download the `good-deeds-companion-apk` artifact and sideload it (debug-keystore signed: testing only). For a quick backend: run the API locally with `npm run seed:demo` + `npm run dev:api` and expose it through an HTTPS tunnel (e.g. `cloudflared tunnel --url http://localhost:8080`); sign up with invite `DEMO-INVITE`.

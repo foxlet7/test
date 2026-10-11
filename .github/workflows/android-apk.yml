@@ -1,0 +1,34 @@
+name: android-apk
+# Builds an installable test APK (debug-keystore signed — for testing only, NOT for Play Store upload).
+# Run from the Actions tab: "Run workflow" and give the HTTPS URL of a reachable API.
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "HTTPS base URL of the API the app will talk to (e.g. https://abc.trycloudflare.com)"
+        required: true
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - name: Generate the native Android project
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --no-install
+        env: { EXPO_NO_TELEMETRY: "1", CI: "1" }
+      - name: Build release APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease --no-daemon
+        env:
+          EXPO_PUBLIC_API_URL: ${{ inputs.api_url }}
+          NODE_ENV: production
+      - uses: actions/upload-artifact@v4
+        with:
+          name: good-deeds-companion-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/*.apk
