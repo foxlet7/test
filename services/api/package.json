@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "seed:demo": "tsx src/seed/demo.ts",
-    "staff:create": "node dist/create-staff.js"
+    "staff:create": "node dist/seed/create-staff.js",
+    "seed:catalogue": "node dist/seed/seed-catalogue.js"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",

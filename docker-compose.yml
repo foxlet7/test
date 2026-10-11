@@ -1,0 +1,23 @@
+# Local/staging stack. Not production-hardened: use managed Postgres, a secret manager and TLS termination in production.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: gdc
+      POSTGRES_PASSWORD: gdc_dev_only
+      POSTGRES_DB: gdc
+    volumes: [dbdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U gdc"], interval: 5s, retries: 10 }
+  api:
+    build: { context: ., dockerfile: services/api/Dockerfile }
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://gdc:gdc_dev_only@db:5432/gdc
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (32+ chars)}
+      EVIDENCE_KEY_HEX: ${EVIDENCE_KEY_HEX:?set EVIDENCE_KEY_HEX (64 hex chars)}
+      EVIDENCE_DIR: /data/evidence
+      CORS_ORIGINS: http://localhost:3001
+    volumes: [evidence:/data/evidence]
+    ports: ["8080:8080"]
+volumes: { dbdata: {}, evidence: {} }
