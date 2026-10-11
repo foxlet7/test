@@ -1,0 +1,19 @@
+# keep the build context small and never copy host-installed (possibly Windows/macOS) native modules into the Linux image
+**/node_modules
+**/dist
+**/dist-seed
+**/.expo
+/apps/api/uploads
+/uploads
+.git
+.github
+apps/mobile
+apps/admin
+apps/android-shell
+tests
+docs
+noc-dashboard
+*.apk
+**/.env
+**/.env.*
+!**/.env.example

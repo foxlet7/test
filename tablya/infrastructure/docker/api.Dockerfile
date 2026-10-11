@@ -24,9 +24,10 @@ COPY --from=build /repo/apps/api/dist apps/api/dist
 COPY --from=build /repo/apps/api/dist-seed apps/api/dist-seed
 COPY apps/api/prisma apps/api/prisma
 RUN cd apps/api && npx prisma generate
+RUN mkdir -p /data/uploads && chown -R node:node /data /repo
 USER node
 EXPOSE 3000
 WORKDIR /repo/apps/api
-# Run `npx prisma migrate deploy` as a release step (see docs/DEPLOYMENT.md), not on every container start.
+# Production: run `npx prisma migrate deploy` as a release step (docs/DEPLOYMENT.md). The dev compose file migrates+seeds on start.
 CMD ["node", "dist/main.js"]
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s CMD node -e "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
