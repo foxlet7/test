@@ -1,0 +1,10 @@
+const { chromium } = require('playwright-core'); const crypto = require('crypto');
+const B32='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+const dec=s=>{let bits='';for(const c of s)bits+=B32.indexOf(c).toString(2).padStart(5,'0');const a=[];for(let i=0;i+8<=bits.length;i+=8)a.push(parseInt(bits.slice(i,i+8),2));return Buffer.from(a)};
+const totp=s=>{const c=Buffer.alloc(8);c.writeBigUInt64BE(BigInt(Math.floor(Date.now()/30000)));const h=crypto.createHmac('sha1',dec(s)).update(c).digest();const o=h[h.length-1]&15;return String(((h[o]&127)<<24|h[o+1]<<16|h[o+2]<<8|h[o+3])%1e6).padStart(6,'0')};
+(async()=>{const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium',args:['--no-sandbox']});const p=await b.newPage({viewport:{width:1100,height:800}});
+await p.goto('http://localhost:5173/'); await p.fill('#email','support@tablya.test'); await p.fill('#pw','DemoPassw0rd!'); await p.click('button[type=submit]');
+await p.waitForSelector('#secret'); const secret=await p.inputValue('#secret'); console.log('mfa setup screen shown, secret length', secret.length);
+await p.screenshot({path:'mfa-setup.png'});
+await p.fill('#code', totp(secret)); await p.click('button.primary'); await p.waitForSelector('.stat',{timeout:8000}); console.log('console unlocked after enrol, stats:', await p.locator('.stat').count());
+await b.close()})().catch(e=>{console.error('FAIL',e.message.split('\n')[0]);process.exit(1)});

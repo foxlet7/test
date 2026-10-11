@@ -193,6 +193,14 @@ describe('Authorization, IDOR and abuse resistance', () => {
       ).status,
     ).toBe(403);
     expect((await h.call('get', '/admin/payments', mod.token)).status).toBe(403);
+    for (const u of [
+      '/admin/users',
+      '/admin/orders',
+      '/admin/kitchens',
+      '/admin/support/tickets',
+      '/admin/dashboard',
+    ])
+      expect([u, (await h.call('get', u, mod.token)).status]).toEqual([u, 403]); // PII stays out of moderators' reach
     expect((await h.call('get', '/admin/reports', mod.token)).status).toBe(200);
     expect((await h.call('get', '/admin/audit-logs', support.token)).status).toBe(403);
   });

@@ -47,7 +47,8 @@ const paged = <T>(items: T[], total: number, p: { page: number; pageSize: number
 
 @ApiTags('admin')
 @ApiBearerAuth()
-@Roles(...STAFF_ROLES)
+// Default: admins and support. Moderators are granted access only on the moderation endpoints below (least privilege).
+@Roles(...ADMIN_ROLES, 'SUPPORT')
 @Controller('admin')
 export class AdminController {
   constructor(
