@@ -39,11 +39,15 @@ jobs:
         working-directory: apps/mobile/android
         run: |
           echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g" >> gradle.properties
-          ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
+          set -o pipefail
+          ./gradlew assembleRelease --no-daemon --stacktrace -PreactNativeArchitectures=arm64-v8a 2>&1 | tee ../../../build.log
         env:
           NODE_ENV: production
           EXPO_PUBLIC_API_URL: ${{ inputs.api_url }}
           EXPO_PUBLIC_DEMO: ${{ inputs.api_url == '' && '1' || '0' }}
+      - name: Show build errors
+        if: failure()
+        run: grep -nE "Caused by|Exception|rror:|FAILED|expo-modules-autolinking|stderr" build.log | grep -v "^.*Deprecat" | head -60 || true
       - name: Collect APK
         run: |
           mkdir -p out
