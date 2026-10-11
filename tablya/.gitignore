@@ -7,3 +7,4 @@ uploads
 coverage
 .expo
 *.log
+dist-seed

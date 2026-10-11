@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- JVM tests for the Android shell (Robolectric). Run: mvn -q test  (after ../build.sh has staged build/assets) -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>app.tablya</groupId>
+  <artifactId>shell-tests</artifactId>
+  <version>0.1.0</version>
+  <properties>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+  <dependencies>
+    <dependency><groupId>org.robolectric</groupId><artifactId>robolectric</artifactId><version>4.16</version><scope>test</scope>
+      <exclusions>
+        <exclusion><groupId>androidx.test</groupId><artifactId>monitor</artifactId></exclusion>
+        <exclusion><groupId>androidx.test.espresso</groupId><artifactId>espresso-idling-resource</artifactId></exclusion>
+      </exclusions></dependency>
+    <dependency><groupId>junit</groupId><artifactId>junit</artifactId><version>4.13.2</version><scope>test</scope></dependency>
+    <dependency><groupId>org.robolectric</groupId><artifactId>android-all</artifactId><version>14-robolectric-10818077</version><scope>provided</scope></dependency>
+  </dependencies>
+  <build>
+    <testResources><testResource><directory>src/test/resources</directory><filtering>true</filtering></testResource></testResources>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId><artifactId>build-helper-maven-plugin</artifactId><version>3.6.0</version>
+        <executions>
+          <execution><id>shell-dir</id><phase>initialize</phase><goals><goal>regex-property</goal></goals>
+            <configuration><name>shell.dir</name><value>${project.basedir}</value><regex>/test$</regex><replacement></replacement><failIfNoMatch>true</failIfNoMatch></configuration></execution>
+          <execution><id>add-shell-src</id><phase>generate-sources</phase><goals><goal>add-source</goal></goals>
+          <configuration><sources><source>../src</source></sources></configuration></execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

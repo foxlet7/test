@@ -5,6 +5,7 @@ import { Button, Card, Row, Screen, toast, Txt } from '../../src/components/ui';
 import { api } from '../../src/lib/api';
 import { isCook, useAuth } from '../../src/lib/auth';
 import { useI18n, useT } from '../../src/lib/i18n';
+import { shell } from '../../src/lib/shell';
 
 const LEGAL = {
   privacy: process.env.EXPO_PUBLIC_PRIVACY_URL ?? '',
@@ -72,6 +73,13 @@ export default function Profile() {
       )}
       {!!LEGAL.terms && (
         <Button title={t('profile.terms')} variant="ghost" onPress={() => open(LEGAL.terms)} />
+      )}
+      {shell && (
+        <Button
+          title={t('welcome.server')}
+          variant="secondary"
+          onPress={() => shell?.changeServer()}
+        />
       )}
       <Button title={t('auth.logout')} variant="secondary" onPress={() => void logout()} />
       <Button

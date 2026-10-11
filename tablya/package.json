@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
-    "test": "npm run build:shared && npm test -w @tablya/shared && npm test -w @tablya/api && npm run check:i18n -w @tablya/mobile"
+    "test": "npm run build:shared && npm test -w @tablya/shared && npm test -w @tablya/api && npm run check:i18n -w @tablya/mobile",
+    "build:apk": "apps/android-shell/build.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

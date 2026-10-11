@@ -8,6 +8,8 @@ RUN npm ci --workspace @tablya/shared --workspace @tablya/api --include-workspac
 COPY packages/shared packages/shared
 COPY apps/api apps/api
 RUN npm run build -w @tablya/shared && npm run build -w @tablya/api
+# demo-data seed compiled to plain JS so dev/staging containers can seed without ts-node (refuses to run when NODE_ENV=production)
+RUN cd apps/api && npx tsc prisma/seed.ts --outDir dist-seed --module commonjs --target es2022 --esModuleInterop --skipLibCheck
 
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production
@@ -19,6 +21,7 @@ COPY --from=build /repo/apps/api/package.json apps/api/
 RUN npm ci --omit=dev --workspace @tablya/shared --workspace @tablya/api --include-workspace-root
 COPY --from=build /repo/packages/shared/dist packages/shared/dist
 COPY --from=build /repo/apps/api/dist apps/api/dist
+COPY --from=build /repo/apps/api/dist-seed apps/api/dist-seed
 COPY apps/api/prisma apps/api/prisma
 RUN cd apps/api && npx prisma generate
 USER node

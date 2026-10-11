@@ -1,7 +1,10 @@
 import Constants from 'expo-constants';
 import { storage } from './storage';
 
+/** The Android test shell injects the server URL at runtime (`/__config.js`); otherwise it is the build-time value. */
+const injectedApiUrl = (globalThis as { __TABLYA_API_URL__?: string }).__TABLYA_API_URL__;
 export const API_URL: string =
+  injectedApiUrl ??
   process.env.EXPO_PUBLIC_API_URL ??
   (Constants.expoConfig?.extra?.apiUrl as string) ??
   'http://localhost:3000';

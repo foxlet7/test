@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Row, toast, Txt } from '../../src/components/ui';
 import { useI18n, useT } from '../../src/lib/i18n';
 import { requestLocation } from '../../src/lib/location';
+import { shell } from '../../src/lib/shell';
 import { space, useColors } from '../../src/lib/theme';
 
 export default function Welcome() {
@@ -27,7 +28,16 @@ export default function Welcome() {
     <SafeAreaView
       style={{ flex: 1, backgroundColor: c.bg, padding: space.xl, justifyContent: 'space-between' }}
     >
-      <Row style={{ justifyContent: 'flex-end' }}>
+      <Row style={{ justifyContent: 'space-between' }}>
+        {shell ? (
+          <Button
+            title={t('welcome.server')}
+            variant="ghost"
+            onPress={() => shell?.changeServer()}
+          />
+        ) : (
+          <View />
+        )}
         <Button
           title={locale === 'en' ? 'العربية' : 'English'}
           variant="ghost"

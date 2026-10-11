@@ -28,6 +28,14 @@ services:
       MESSAGE_PROVIDER: console
       EXPOSE_DEV_OTP: "true"
       STORAGE_DIR: /data/uploads
+      # origin used by the Android test shell (apps/android-shell) plus the admin dev server
+      CORS_ORIGINS: https://app.tablya.local,http://localhost:5173
+      PUBLIC_BASE_URL: http://localhost:3000
+      THROTTLE_LIMIT: "1000"
+      AUTH_THROTTLE_LIMIT: "100"
+    # dev/staging only: migrate, seed demo data (idempotent, refuses production), then start
+    # NODE_ENV=development is set above so the seed runs; never use this command in production.
+    command: ["sh", "-c", "npx prisma migrate deploy && node dist-seed/seed.js && node dist/main.js"]
     volumes: [uploads:/data/uploads]
     ports: ["3000:3000"]
 volumes:
