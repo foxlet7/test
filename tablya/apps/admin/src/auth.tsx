@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { api, sessionStore, setLogoutHandler, type Session } from './api';
 
 const STAFF = ['SUPPORT', 'MODERATOR', 'ADMIN', 'SUPER_ADMIN'];
@@ -16,7 +24,7 @@ export const useAuth = () => useContext(Ctx);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => sessionStore.get());
-  const idle = useRef<number>();
+  const idle = useRef<number | undefined>(undefined);
 
   const clear = useCallback(() => {
     sessionStore.set(null);
@@ -50,22 +58,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session, logout]);
 
   const login = useCallback(async (email: string, password: string, totp?: string) => {
-    const r = await api<{ user: Session['user']; tokens: { accessToken: string; refreshToken: string } }>('/auth/login', {
+    const r = await api<{
+      user: Session['user'];
+      tokens: { accessToken: string; refreshToken: string };
+    }>('/auth/login', {
       method: 'POST',
       body: { email, password, ...(totp ? { totp } : {}) },
       retry: false,
     });
     if (!r.user.roles.some((x) => STAFF.includes(x))) {
       // Don't leave a live customer session behind on the server.
-      await fetch(`${import.meta.env.VITE_API_URL ?? '/api'}/auth/logout`, { method: 'POST', headers: { authorization: `Bearer ${r.tokens.accessToken}` } }).catch(() => undefined);
+      await fetch(`${import.meta.env.VITE_API_URL ?? '/api'}/auth/logout`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${r.tokens.accessToken}` },
+      }).catch(() => undefined);
       throw Object.assign(new Error('staff-only'), { staffOnly: true });
     }
-    const s = { accessToken: r.tokens.accessToken, refreshToken: r.tokens.refreshToken, user: r.user };
+    const s = {
+      accessToken: r.tokens.accessToken,
+      refreshToken: r.tokens.refreshToken,
+      user: r.user,
+    };
     sessionStore.set(s);
     setSession(s);
   }, []);
 
   const roles = session?.user.roles ?? [];
-  const can = (...want: string[]) => roles.includes('SUPER_ADMIN') || want.some((w) => roles.includes(w));
+  const can = (...want: string[]) =>
+    roles.includes('SUPER_ADMIN') || want.some((w) => roles.includes(w));
   return <Ctx.Provider value={{ session, roles, can, login, logout }}>{children}</Ctx.Provider>;
 }

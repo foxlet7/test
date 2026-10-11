@@ -8,7 +8,9 @@ import { ToastProvider } from './components/ui';
 import { I18nProvider } from './i18n';
 import './styles.css';
 
-const client = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 15_000, refetchOnWindowFocus: false } } });
+const client = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 15_000, refetchOnWindowFocus: false } },
+});
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

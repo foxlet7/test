@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Tablya",
+    "slug": "tablya",
+    "scheme": "tablya",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#B8420F" },
+    "ios": {
+      "bundleIdentifier": "com.example.tablya",
+      "supportsTablet": true,
+      "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
+    },
+    "android": {
+      "package": "com.example.tablya",
+      "adaptiveIcon": { "foregroundImage": "./assets/icon.png", "backgroundColor": "#B8420F" },
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "CAMERA", "POST_NOTIFICATIONS"],
+      "blockedPermissions": ["RECORD_AUDIO", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+    },
+    "web": { "bundler": "metro", "output": "single", "favicon": "./assets/icon.png" },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-localization",
+      ["expo-location", { "locationWhenInUsePermission": "Tablya uses your location to show home kitchens that deliver to you. It is only used while the app is open." }],
+      ["expo-image-picker", { "photosPermission": "Choose photos of your kitchen and dishes to show customers.", "cameraPermission": "Take photos of your kitchen and dishes to show customers." }],
+      ["expo-notifications", { "color": "#B8420F" }]
+    ],
+    "experiments": { "typedRoutes": false },
+    "extra": { "apiUrl": "http://localhost:3000" }
+  }
+}

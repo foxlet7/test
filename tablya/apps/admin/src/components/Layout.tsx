@@ -25,15 +25,23 @@ export function Layout() {
         <div className="brand">{t('app.name')}</div>
         <nav className="nav" aria-label="Main">
           {NAV.filter((n) => can(...n.roles)).map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.to === '/'}>{t(n.key)}</NavLink>
+            <NavLink key={n.to} to={n.to} end={n.to === '/'}>
+              {t(n.key)}
+            </NavLink>
           ))}
         </nav>
         <div className="spacer" />
         <small style={{ color: 'var(--muted)', padding: '0 12px' }}>{session?.user.name}</small>
-        <button className="btn" onClick={() => setLocale(locale === 'en' ? 'ar' : 'en')}>{t('nav.language')}</button>
-        <button className="btn" onClick={() => void logout()}>{t('nav.logout')}</button>
+        <button className="btn" onClick={() => setLocale(locale === 'en' ? 'ar' : 'en')}>
+          {t('nav.language')}
+        </button>
+        <button className="btn" onClick={() => void logout()}>
+          {t('nav.logout')}
+        </button>
       </aside>
-      <main className="main"><Outlet /></main>
+      <main className="main">
+        <Outlet />
+      </main>
     </div>
   );
 }

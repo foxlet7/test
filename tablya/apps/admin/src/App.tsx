@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { useAuth } from './auth';
@@ -14,7 +15,7 @@ import { Settings } from './pages/Settings';
 import { Support } from './pages/Support';
 import { Users } from './pages/Users';
 
-function Guard({ children }: { children: JSX.Element }) {
+function Guard({ children }: { children: ReactElement }) {
   const { session } = useAuth();
   return session ? children : <Navigate to="/login" replace />;
 }
@@ -24,7 +25,13 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route element={<Guard><Layout /></Guard>}>
+      <Route
+        element={
+          <Guard>
+            <Layout />
+          </Guard>
+        }
+      >
         <Route index element={<Dashboard />} />
         <Route path="kitchens" element={<Kitchens />} />
         <Route path="kitchens/:id" element={<KitchenDetail />} />

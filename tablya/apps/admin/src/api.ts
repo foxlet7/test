@@ -56,7 +56,11 @@ async function refresh(): Promise<boolean> {
     .then(async (r) => {
       if (!r.ok) return false;
       const j = await r.json();
-      sessionStore.set({ ...s, accessToken: j.data.accessToken, refreshToken: j.data.refreshToken });
+      sessionStore.set({
+        ...s,
+        accessToken: j.data.accessToken,
+        refreshToken: j.data.refreshToken,
+      });
       return true;
     })
     .catch(() => false)
@@ -86,14 +90,18 @@ export async function api<T = unknown>(
   } catch {
     throw new ApiError(0, { code: 'NETWORK', message: 'Network error or timeout' });
   }
-  if ((res.status === 401) && s && opts.retry !== false && (await refresh())) return api<T>(path, { ...opts, retry: false });
+  if (res.status === 401 && s && opts.retry !== false && (await refresh()))
+    return api<T>(path, { ...opts, retry: false });
   const json = await res.json().catch(() => null);
   if (!res.ok || !json?.success) {
     if (res.status === 401 && s) {
       sessionStore.set(null);
       onLogout();
     }
-    throw new ApiError(res.status, json?.error ?? { code: 'INTERNAL', message: 'Unexpected response' });
+    throw new ApiError(
+      res.status,
+      json?.error ?? { code: 'INTERNAL', message: 'Unexpected response' },
+    );
   }
   return json.data as T;
 }
