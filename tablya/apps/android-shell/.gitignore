@@ -3,3 +3,4 @@ debug.keystore
 tools/android.jar
 test/target/
 *.idsig
+diag/out/

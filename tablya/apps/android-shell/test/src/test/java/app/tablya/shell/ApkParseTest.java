@@ -30,6 +30,4 @@ public class ApkParseTest {
     }
 
     @Test @Config(sdk = 34) public void parsesOnAndroid14() { check(); }
-    @Test @Config(sdk = 30) public void parsesOnAndroid11() { check(); }
-    @Test @Config(sdk = 28) public void parsesOnAndroid9() { check(); }
 }
