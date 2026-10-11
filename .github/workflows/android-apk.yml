@@ -47,7 +47,8 @@ jobs:
           EXPO_PUBLIC_DEMO: ${{ inputs.api_url == '' && '1' || '0' }}
       - name: Show build errors
         if: failure()
-        run: grep -nE "Caused by|Exception|rror:|FAILED|expo-modules-autolinking|stderr" build.log | grep -v "^.*Deprecat" | head -60 || true
+        run: |
+          sed -n 115,200p build.log | grep -vE "org\.gradle\.(internal|launcher|api\.internal|configuration|execution|initialization)" | cut -c1-260 | head -60
       - name: Collect APK
         run: |
           mkdir -p out
