@@ -1,0 +1,14 @@
+{
+  "name": "good-deeds-companion",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["packages/*", "services/*", "apps/admin", "apps/mobile"],
+  "scripts": {
+    "test": "npm run test -w @gdc/shared -w @gdc/api",
+    "typecheck": "npm run typecheck -w @gdc/shared -w @gdc/api -w @gdc/admin -w @gdc/mobile",
+    "dev:api": "npm run dev -w @gdc/api",
+    "dev:admin": "npm run dev -w @gdc/admin",
+    "dev:mobile": "npm run start -w @gdc/mobile",
+    "seed:demo": "npm run seed:demo -w @gdc/api"
+  }
+}

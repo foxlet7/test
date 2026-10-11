@@ -1,0 +1,12 @@
+node_modules
+/packages/*/dist
+/services/*/dist
+/apps/*/dist
+.next
+.expo
+*.log
+.env
+.env.*
+!.env.example
+var/
+coverage
