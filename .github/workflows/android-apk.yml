@@ -15,6 +15,9 @@ on:
     paths: ["apps/mobile/**", "packages/shared/**", ".github/workflows/android-apk.yml"]
 permissions:
   contents: write
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
 jobs:
   apk:
     runs-on: ubuntu-latest
