@@ -26,6 +26,12 @@ import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import java.io.ByteArrayInputStream;
+import java.net.ConnectException;
+import java.net.HttpURLConnection;
+import java.net.NoRouteToHostException;
+import java.net.SocketTimeoutException;
+import java.net.URL;
+import java.net.UnknownHostException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -108,7 +114,8 @@ public class MainActivity extends Activity {
                 .setMessage("Address of the Tablya API reachable from this phone (same Wi-Fi as your computer), e.g. http://192.168.1.20:3000")
                 .setView(input)
                 .setCancelable(!firstRun)
-                .setPositiveButton("Connect", null);
+                .setPositiveButton("Connect", null)
+                .setNeutralButton("Save anyway", null);
         if (!firstRun) {
             b.setNegativeButton("Cancel", null);
         }
@@ -116,27 +123,100 @@ public class MainActivity extends Activity {
         d.setOnShowListener(new DialogInterface.OnShowListener() {
             @Override
             public void onShow(DialogInterface di) {
-                d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new android.view.View.OnClickListener() {
+                final android.widget.Button connect = d.getButton(AlertDialog.BUTTON_POSITIVE);
+                final android.widget.Button saveAnyway = d.getButton(AlertDialog.BUTTON_NEUTRAL);
+                saveAnyway.setVisibility(android.view.View.GONE);
+                saveAnyway.setOnClickListener(new android.view.View.OnClickListener() {
                     @Override
                     public void onClick(android.view.View v) {
-                        String url = input.getText().toString().trim();
-                        while (url.endsWith("/")) {
-                            url = url.substring(0, url.length() - 1);
-                        }
+                        applyServer(d, input.getText().toString());
+                    }
+                });
+                connect.setOnClickListener(new android.view.View.OnClickListener() {
+                    @Override
+                    public void onClick(android.view.View v) {
+                        final String url = normalizeUrl(input.getText().toString());
                         if (!url.startsWith("http://") && !url.startsWith("https://")) {
                             input.setError("Must start with http:// or https://");
                             return;
                         }
-                        prefs.edit().putString(KEY_SERVER, url).apply();
-                        d.dismiss();
-                        web.clearCache(true);
-                        web.loadUrl(ORIGIN + "/index.html");
-                        Toast.makeText(MainActivity.this, "Server: " + url, Toast.LENGTH_SHORT).show();
+                        connect.setEnabled(false);
+                        connect.setText("Testing…");
+                        d.setMessage("Contacting " + url + "/health …");
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                final String problem = testServer(url);
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        connect.setEnabled(true);
+                                        connect.setText("Connect");
+                                        if (problem == null) {
+                                            applyServer(d, url);
+                                        } else {
+                                            d.setMessage("Cannot reach the server.\n\n" + problem);
+                                            saveAnyway.setVisibility(android.view.View.VISIBLE);
+                                        }
+                                    }
+                                });
+                            }
+                        }).start();
                     }
                 });
             }
         });
         d.show();
+    }
+
+    private static String normalizeUrl(String raw) {
+        String url = raw.trim();
+        while (url.endsWith("/")) {
+            url = url.substring(0, url.length() - 1);
+        }
+        return url;
+    }
+
+    private void applyServer(AlertDialog d, String raw) {
+        String url = normalizeUrl(raw);
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return;
+        }
+        prefs.edit().putString(KEY_SERVER, url).apply();
+        d.dismiss();
+        web.clearCache(true);
+        web.loadUrl(ORIGIN + "/index.html");
+        Toast.makeText(MainActivity.this, "Server: " + url, Toast.LENGTH_SHORT).show();
+    }
+
+    /** Returns null when GET {url}/health answers 200, otherwise a human-readable reason and what to check. */
+    static String testServer(String url) {
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL(url + "/health").openConnection();
+            c.setConnectTimeout(4000);
+            c.setReadTimeout(4000);
+            int code = c.getResponseCode();
+            if (code == 200) {
+                return null;
+            }
+            return "A server answered at that address, but /health returned HTTP " + code
+                    + ". Is that the Tablya API (port 3000) and not another program?";
+        } catch (UnknownHostException e) {
+            return "Unknown host. Check the address for typos.";
+        } catch (ConnectException e) {
+            return "Connection refused. The address is reachable but nothing is listening on that port: is the Tablya API running on your computer, and is the port right (default 3000)?";
+        } catch (SocketTimeoutException e) {
+            return "Timed out. Usually: the phone is on a different Wi-Fi/hotspot than the computer, the computer's firewall is blocking the port, or the IP is wrong.";
+        } catch (NoRouteToHostException e) {
+            return "No route to host. The phone and computer are on different networks (or Wi-Fi client isolation is on).";
+        } catch (java.io.IOException e) {
+            return "Network error: " + e.getMessage();
+        } finally {
+            if (c != null) {
+                c.disconnect();
+            }
+        }
     }
 
     /** JavaScript bridge: only exposed to our own virtual origin (requests for other hosts are opened in the browser). */

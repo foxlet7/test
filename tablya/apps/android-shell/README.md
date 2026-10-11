@@ -27,7 +27,7 @@ No Docker? Use the quick start in the root README (Postgres + `npm run seed` + `
 The API must allow the shell's origin: `CORS_ORIGINS=https://app.tablya.local` (already set in the compose file).
 
 ## First launch
-Enter `http://<computer-ip>:3000` when prompted (change it any time: **Server settings** on the welcome screen or Profile tab).
+Enter `http://<computer-ip>:3000` when prompted. **Connect** first tests `GET /health` and, if it fails, tells you why (refused / timed out / unknown host) and offers *Save anyway*. Change it any time: **Server settings** on the welcome screen or Profile tab.
 Demo logins (password `DemoPassw0rd!`): `customer@tablya.test`, `cook.fatima@tablya.test` (cook dashboard: Profile → Cook dashboard),
 `admin@tablya.test` (use the admin web console, not the app). Seeded kitchens are open 09:00–23:00 **Asia/Riyadh time**; outside those hours they show as *Closed* (register a new cook/kitchen, or edit hours, to test at night).
 Card payments use the **sandbox provider**: after "Place order" choose *Complete test payment*. Cash on delivery works without it.

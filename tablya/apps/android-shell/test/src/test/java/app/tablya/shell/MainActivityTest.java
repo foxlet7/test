@@ -67,29 +67,102 @@ public class MainActivityTest {
         return (WebView) f.get(a);
     }
 
-    @Test
-    public void firstLaunchAsksForServerAndRejectsInvalidUrls() throws Exception {
-        MainActivity a = start();
-        AlertDialog d = ShadowAlertDialog.getLatestAlertDialog();
-        assertNotNull("server dialog shown on first run", d);
-        assertTrue(d.isShowing());
-        EditText input = null;
-        // the EditText is the dialog's custom view
-        android.view.View v = d.getWindow().getDecorView();
-        input = findEdit(v);
-        assertNotNull(input);
+    private static void waitFor(java.util.concurrent.Callable<Boolean> cond) throws Exception {
+        long end = System.currentTimeMillis() + 8000;
+        while (System.currentTimeMillis() < end) {
+            org.robolectric.shadows.ShadowLooper.idleMainLooper();
+            if (cond.call()) return;
+            Thread.sleep(40);
+        }
+        throw new AssertionError("condition not met within 8s");
+    }
 
+    private static com.sun.net.httpserver.HttpServer healthServer(final int status) throws Exception {
+        com.sun.net.httpserver.HttpServer srv = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        srv.createContext("/health", new com.sun.net.httpserver.HttpHandler() {
+            public void handle(com.sun.net.httpserver.HttpExchange ex) throws java.io.IOException {
+                byte[] b = "{\"status\":\"ok\"}".getBytes("UTF-8");
+                ex.sendResponseHeaders(status, b.length);
+                ex.getResponseBody().write(b);
+                ex.close();
+            }
+        });
+        srv.start();
+        return srv;
+    }
+
+    @Test
+    public void firstLaunchValidatesTheUrlThenTestsTheServerBeforeSaving() throws Exception {
+        final MainActivity a = start();
+        final AlertDialog d = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull("server dialog shown on first run", d);
+        final EditText input = findEdit(d.getWindow().getDecorView());
+        assertNotNull(input);
+        final android.content.SharedPreferences prefs = a.getSharedPreferences("tablya_shell", Context.MODE_PRIVATE);
+
+        // 1) malformed input never leaves the dialog
         input.setText("not-a-url");
         d.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
-        assertTrue("invalid input keeps the dialog open", d.isShowing());
+        assertTrue(d.isShowing());
         assertNotNull(input.getError());
-        assertNull(a.getSharedPreferences("tablya_shell", Context.MODE_PRIVATE).getString("server", null));
+        assertNull(prefs.getString("server", null));
 
-        input.setText("http://192.168.1.20:3000/");
+        // 2) an unreachable server is reported with a reason and is NOT saved; "Save anyway" is offered
+        input.setText("http://127.0.0.1:1/");
         d.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
-        assertEquals("trailing slash trimmed and saved", "http://192.168.1.20:3000",
-                a.getSharedPreferences("tablya_shell", Context.MODE_PRIVATE).getString("server", null));
+        waitFor(new java.util.concurrent.Callable<Boolean>() {
+            public Boolean call() { return d.getButton(AlertDialog.BUTTON_NEUTRAL).getVisibility() == android.view.View.VISIBLE; }
+        });
+        assertTrue(d.isShowing());
+        assertNull("not saved after a failed test", prefs.getString("server", null));
+        android.widget.TextView msg = (android.widget.TextView) d.findViewById(android.R.id.message);
+        assertTrue(String.valueOf(msg.getText()), msg.getText().toString().contains("Connection refused"));
+
+        d.getButton(AlertDialog.BUTTON_NEUTRAL).performClick();
+        assertEquals("http://127.0.0.1:1", prefs.getString("server", null));
         assertEquals("https://app.tablya.local/index.html", shadowOf(webOf(a)).getLastLoadedUrl());
+    }
+
+    @Test
+    public void reachableServerIsSavedAutomatically() throws Exception {
+        com.sun.net.httpserver.HttpServer srv = healthServer(200);
+        try {
+            final MainActivity a = start();
+            final AlertDialog d = ShadowAlertDialog.getLatestAlertDialog();
+            EditText input = findEdit(d.getWindow().getDecorView());
+            String url = "http://127.0.0.1:" + srv.getAddress().getPort() + "/";
+            input.setText(url);
+            d.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+            final android.content.SharedPreferences prefs = a.getSharedPreferences("tablya_shell", Context.MODE_PRIVATE);
+            waitFor(new java.util.concurrent.Callable<Boolean>() {
+                public Boolean call() { return prefs.getString("server", null) != null; }
+            });
+            assertEquals("http://127.0.0.1:" + srv.getAddress().getPort(), prefs.getString("server", null));
+            assertEquals("https://app.tablya.local/index.html", shadowOf(webOf(a)).getLastLoadedUrl());
+        } finally {
+            srv.stop(0);
+        }
+    }
+
+    @Test
+    public void testServerExplainsEachFailureMode() throws Exception {
+        assertNull(MainActivity.testServer(healthUrl(200)));
+        assertTrue(MainActivity.testServer(healthUrl(404)).contains("HTTP 404"));
+        assertTrue(MainActivity.testServer("http://127.0.0.1:1").contains("Connection refused"));
+        assertTrue(MainActivity.testServer("http://no-such-host.invalid").contains("Unknown host"));
+    }
+
+    private String healthUrl(int status) throws Exception {
+        com.sun.net.httpserver.HttpServer srv = healthServer(status);
+        servers.add(srv);
+        return "http://127.0.0.1:" + srv.getAddress().getPort();
+    }
+
+    private final java.util.List<com.sun.net.httpserver.HttpServer> servers = new java.util.ArrayList<com.sun.net.httpserver.HttpServer>();
+
+    @org.junit.After
+    public void stopServers() {
+        for (com.sun.net.httpserver.HttpServer s : servers) s.stop(0);
     }
 
     private static EditText findEdit(android.view.View v) {
