@@ -1,0 +1,615 @@
+<!doctype html>
+<!-- PRTG NOC Dashboard - single-file build. Edit NOC_CONFIG below to change layout. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Availability Report</title>
+  <style>
+:root {
+  --bg: #f6f7f9;
+  --paper: #ffffff;
+  --text: #1b2430;
+  --muted: #5f6b7a;
+  --border: #dde2e8;
+  --good: #1a7f37;
+  --warn: #b7791f;
+  --bad: #c62828;
+  --na: #8b949e;
+  --accent: #0b5cad;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+
+.head {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem;
+  padding: 1.2rem 1.5rem; background: var(--paper); border-bottom: 3px solid var(--accent);
+}
+.head h1 { margin: 0; font-size: 1.5rem; }
+.head .sub { color: var(--muted); }
+
+.controls { display: flex; flex-wrap: wrap; gap: .6rem; align-items: flex-end; }
+.controls label { display: flex; flex-direction: column; font-size: .75rem; color: var(--muted); gap: .2rem; }
+.controls input { font: inherit; padding: .35rem .5rem; border: 1px solid var(--border); border-radius: 6px; }
+.controls input[type=number] { width: 6.5rem; }
+.controls button {
+  font: inherit; font-weight: 600; padding: .45rem .9rem; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--accent); background: var(--accent); color: #fff;
+}
+.controls button[type=button] { background: var(--paper); color: var(--accent); }
+.controls button:disabled { opacity: .45; cursor: default; }
+
+.progress, .error { margin: 1rem 1.5rem 0; padding: .7rem 1rem; border-radius: 6px; }
+.progress { background: #e8f1fb; color: var(--accent); }
+.error { background: #fdecea; color: var(--bad); white-space: pre-wrap; }
+[hidden] { display: none !important; }
+
+.kpis {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .8rem;
+  margin: 1rem 1.5rem 0;
+}
+.kpi { background: var(--paper); border: 1px solid var(--border); border-radius: 8px; padding: .8rem 1rem; }
+.kpi .n { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi .l { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; }
+.kpi.good .n { color: var(--good); }
+.kpi.warn .n { color: var(--warn); }
+.kpi.bad .n { color: var(--bad); }
+
+main { padding: 0 1.5rem 1rem; }
+
+.panel { background: var(--paper); border: 1px solid var(--border); border-radius: 8px; margin-top: 1rem; overflow: hidden; break-inside: avoid; }
+.panel h2 { margin: 0; padding: .6rem 1rem; font-size: 1rem; background: #eef2f6; border-bottom: 1px solid var(--border); }
+
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+th:nth-child(1) { width: 36%; }
+th:nth-child(2) { width: 12%; }
+th:nth-child(3) { width: 11%; }
+th:nth-child(4) { width: 10%; }
+th:nth-child(5) { width: 13%; }
+td { overflow: hidden; text-overflow: ellipsis; }
+th, td { padding: .45rem 1rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
+th { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td .via { display: block; color: var(--muted); font-size: .78rem; }
+td.up { font-weight: 700; }
+td.up.good { color: var(--good); }
+td.up.warn { color: var(--warn); }
+td.up.bad { color: var(--bad); }
+td.up.na { color: var(--na); font-weight: 400; }
+td.note { color: var(--muted); font-size: .8rem; }
+
+.bar { width: 9rem; height: .55rem; background: #e9edf1; border-radius: 99px; overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--good); }
+.bar.warn span { background: var(--warn); }
+.bar.bad span { background: var(--bad); }
+
+.foot { margin: 1rem 1.5rem 2rem; color: var(--muted); font-size: .78rem; }
+
+@media (max-width: 700px) {
+  .head, main { padding-left: 1rem; padding-right: 1rem; }
+  .kpis, .progress, .error, .foot { margin-left: 1rem; margin-right: 1rem; }
+  th:nth-child(5), td:nth-child(5), th:nth-child(6), td:nth-child(6) { display: none; }
+}
+
+@media print {
+  body { background: #fff; font-size: 11px; }
+  .controls, .progress { display: none !important; }
+  .head { border-bottom-width: 2px; padding: 0 0 .6rem; }
+  .kpis, main, .foot { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
+  .panel { border-color: #ccc; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+</style>
+</head>
+<body>
+  <header class="head">
+    <div>
+      <h1 id="title">Availability Report</h1>
+      <div class="sub" id="period">Select a month and press Generate</div>
+    </div>
+    <form class="controls" id="controls">
+      <label>Month <input type="month" id="month" required></label>
+      <label>SLA target % <input type="number" id="sla" step="0.01" min="0" max="100"></label>
+      <button type="submit" id="go">Generate</button>
+      <button type="button" id="csv" disabled>Export CSV</button>
+      <button type="button" id="print" disabled>Print / PDF</button>
+    </form>
+  </header>
+
+  <div class="progress" id="progress" hidden></div>
+  <div class="error" id="error" hidden></div>
+
+  <section class="kpis" id="kpis" hidden></section>
+  <main id="tables"></main>
+
+  <footer class="foot" id="foot" hidden></footer>
+
+  <script>
+/*
+ * NOC dashboard layout config - edit this file, no code changes needed.
+ *
+ * sections: rendered top-to-bottom in this order (think: traffic path,
+ * Internet -> Firewall -> Core -> Access -> Servers).
+ * A device goes into the FIRST section it matches:
+ *   tags    - PRTG tags on the device (exact, case-insensitive)
+ *   groups  - regex tested against the device's PRTG group name
+ *   devices - regex tested against the device name
+ *
+ * Devices that match nothing go into a section named after their PRTG group
+ * (unmatched: 'group') or into one "Other" section (unmatched: 'other').
+ */
+window.NOC_CONFIG = {
+  // =====================================================================
+  //  PASTE YOUR PRTG LOGIN DETAILS HERE  (use a READ-ONLY PRTG user)
+  //  Option A: API key  ->  apiToken: 'xxxxxxxx',
+  //  Option B: user + passhash  ->  username: 'noc-screen', passhash: '1234567890',
+  //  Anyone who can open this page can read these values in the source.
+  // =====================================================================
+  apiToken: '',
+  username: '',
+  passhash: '',
+  // =====================================================================
+
+  source: 'prtg',  // single-file mode: read the PRTG API directly
+
+  title: 'NOC Dashboard',
+  subtitle: 'PRTG live status',
+
+  refreshSeconds: 30,       // how often the screen polls the backend
+  staleAfterSeconds: 120,   // after this with no good update, screen goes "STALE"
+  reloadPageHours: 6,       // full page reload every N hours (picks up a replaced file); 0 = never
+
+  sections: [
+    { title: 'WAN / Internet',        tags: ['noc-wan'],    groups: ['wan', 'internet', 'isp', 'circuit'] },
+    { title: 'Firewalls',             tags: ['noc-fw'],     groups: ['firewall', 'fortigate', 'fgt'] },
+    { title: 'Core',                  tags: ['noc-core'],   groups: ['core'] },
+    { title: 'Distribution / Access', tags: ['noc-access'], groups: ['distribution', 'access', 'switch'] },
+    { title: 'Servers',               tags: ['noc-server'], groups: ['server', 'domain', 'dc\\b'] },
+    { title: 'Branches',              tags: ['noc-branch'], groups: ['branch', 'site'] },
+  ],
+  unmatched: 'group',
+
+  excludeGroups: [],         // regex list, e.g. ['^Lab', 'Test']
+  hidePausedDevices: false,  // hide devices that are fully paused
+  sortDevices: 'name',       // 'name' keeps tiles in fixed positions; 'severity' floats problems to the front
+  showHost: true,            // show device IP/hostname on tiles
+  maxProblemsPerTile: 3,     // problem sensors listed inside each tile
+
+  // ---- Show ONLY selected sensors/devices (like your old map) -------------
+  // Put PRTG object IDs here (sensor IDs or device IDs - a device ID shows all
+  // its sensors). Find an ID in the PRTG URL: .../sensor.htm?id=2045 -> 2045
+  // Leave both empty to show everything the PRTG user can see.
+  onlyIds: [],
+  onlyTags: [],              // or: tag the sensors in PRTG (e.g. 'noc') and list the tag here
+  showAllSensors: 'auto',    // list every selected sensor with its value ('auto' = when filtering)
+  maxSensorsPerTile: 8,
+  maxAlerts: 50,             // max rows in the alert panel
+  alertStatuses: ['down', 'warn', 'unusual', 'ack'], // what counts as an alert in the right panel
+};
+
+</script>
+  <script>
+(function () {
+  'use strict';
+
+  /*
+   * Monthly availability report for the items on the NOC dashboard.
+   * Uses the same NOC_CONFIG (panels + PRTG credentials) as the dashboard and
+   * PRTG's historic data API: one request per sensor, daily averages, reading
+   * the "Downtime" and coverage values PRTG records for every sensor.
+   */
+  var CFG = Object.assign({
+    title: 'NOC',
+    panels: [],
+    prtgBase: '',
+    apiToken: '',
+    username: '',
+    passhash: '',
+    slaTarget: 99.9,
+    historyRetries: 3,
+    historyRetryWaitSeconds: 20,
+  }, window.NOC_CONFIG || {});
+
+  var params = new URLSearchParams(location.search);
+  var DEMO = params.has('demo') && !!window.NOC_REPORT_DEMO;
+  var DAY = 86400;
+  var lastResult = null;
+
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // ------------------------------------------------------------------ PRTG API
+  function authQuery() {
+    if (CFG.apiToken) return '&apitoken=' + encodeURIComponent(CFG.apiToken);
+    if (CFG.username && CFG.passhash) {
+      return '&username=' + encodeURIComponent(CFG.username) + '&passhash=' + encodeURIComponent(CFG.passhash);
+    }
+    return '';
+  }
+
+  function api(path) {
+    var headers = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
+    return fetch((CFG.prtgBase || '') + path + authQuery(), {
+      cache: 'no-store', credentials: 'same-origin', headers: headers,
+    }).then(function (r) {
+      if (r.status === 401 || r.status === 403) throw new Error('PRTG refused the request (HTTP ' + r.status + ') - check the API key in the file');
+      return r.text().then(function (t) {
+        var j;
+        try { j = JSON.parse(t); } catch (e) { j = null; }
+        if (!r.ok || !j) {
+          var err = new Error('PRTG returned HTTP ' + r.status + (j ? '' : ' (not JSON)') + ': ' + t.slice(0, 200));
+          err.retryable = r.status === 429 || r.status >= 500 || /limit|too many|busy/i.test(t);
+          throw err;
+        }
+        return j;
+      });
+    });
+  }
+
+  function prtgDate(d) {
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '-' +
+      pad(d.getHours()) + '-' + pad(d.getMinutes()) + '-' + pad(d.getSeconds());
+  }
+
+  var parser = new DOMParser();
+  function strip(s) {
+    var str = String(s == null ? '' : s);
+    if (str.indexOf('<') < 0 && str.indexOf('&') < 0) return str.trim();
+    return (parser.parseFromString(str, 'text/html').body.textContent || '').trim();
+  }
+
+  function loadInventory() {
+    if (DEMO) return Promise.resolve(window.NOC_REPORT_DEMO.inventory());
+    return Promise.all([
+      api('/api/table.json?content=devices&output=json&count=50000&columns=objid,device,host'),
+      api('/api/table.json?content=sensors&output=json&count=50000&columns=objid,parentid,device,sensor'),
+    ]).then(function (r) {
+      return {
+        devices: (r[0].devices || []).map(function (d) {
+          return { id: Number(d.objid), name: strip(d.device), host: strip(d.host) };
+        }),
+        sensors: (r[1].sensors || []).map(function (s) {
+          return { id: Number(s.objid), deviceId: Number(s.parentid), device: strip(s.device), name: strip(s.sensor) };
+        }),
+      };
+    });
+  }
+
+  // ------------------------------------------------------------------ item -> sensor (same rules as the dashboard)
+  function squash(x) { return String(x == null ? '' : x).replace(/\s+/g, '').toLowerCase(); }
+  function textMatcher(pattern, exact) {
+    var p = String(pattern);
+    if (p.length > 2 && p[0] === '/' && p[p.length - 1] === '/') {
+      var re = new RegExp(p.slice(1, -1), 'i');
+      return function (v) { return re.test(String(v)); };
+    }
+    var want = squash(p);
+    return exact
+      ? function (v) { return squash(v) === want; }
+      : function (v) { return squash(v).indexOf(want) >= 0; };
+  }
+
+  // A device's availability is taken from its Ping sensor (or its first sensor).
+  function deviceSensor(dev, inv) {
+    var list = inv.sensors.filter(function (s) { return s.deviceId === dev.id; });
+    return list.filter(function (s) { return /ping/i.test(s.name); })[0] || list[0] || null;
+  }
+
+  function resolve(item, inv) {
+    var out = [];
+    function addDevice(d) {
+      out.push({ item: item, device: d.name, sensor: deviceSensor(d, inv), isDevice: true });
+    }
+    if (item.id != null) {
+      var id = Number(item.id);
+      var s = inv.sensors.filter(function (x) { return x.id === id; })[0];
+      if (s) return [{ item: item, device: s.device, sensor: s }];
+      var d = inv.devices.filter(function (x) { return x.id === id; })[0];
+      if (d) addDevice(d);
+      return out;
+    }
+    var dm = item.device ? textMatcher(item.device, false) : null;
+    if (item.sensor) {
+      var sm = textMatcher(item.sensor, true);
+      return inv.sensors
+        .filter(function (x) { return sm(x.name) && (!dm || dm(x.device)); })
+        .map(function (x) { return { item: item, device: x.device, sensor: x }; });
+    }
+    if (dm) inv.devices.filter(function (x) { return dm(x.name); }).forEach(addDevice);
+    return out;
+  }
+
+  // ------------------------------------------------------------------ historic data -> availability
+  function parsePct(v) {
+    if (v == null || v === '') return null;
+    var n = parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
+    return isFinite(n) ? n : null;
+  }
+
+  function history(sensorId, start, end) {
+    if (DEMO) return Promise.resolve(window.NOC_REPORT_DEMO.history(sensorId, start, end));
+    var path = '/api/historicdata.json?id=' + sensorId + '&avg=' + DAY +
+      '&sdate=' + prtgDate(start) + '&edate=' + prtgDate(end);
+    var attempt = 0;
+    function go() {
+      return api(path).catch(function (err) {
+        // PRTG throttles historic-data requests; back off and retry.
+        if (err.retryable && attempt < CFG.historyRetries) {
+          attempt += 1;
+          setProgress('PRTG is throttling history requests - waiting ' + CFG.historyRetryWaitSeconds + 's (retry ' + attempt + ')…');
+          return sleep(CFG.historyRetryWaitSeconds * 1000).then(go);
+        }
+        throw err;
+      });
+    }
+    return go();
+  }
+
+  function availability(hist) {
+    var rows = (hist.histdata || []).filter(function (r) {
+      return !/sum|average|total/i.test(String(r.datetime || ''));
+    });
+    if (!rows.length) return { error: 'no history for this period' };
+
+    var downKey = Object.keys(rows[0]).filter(function (k) { return /^downtime$/i.test(k); })[0];
+    if (!downKey) {
+      return { error: 'PRTG returned no "Downtime" column (columns: ' + Object.keys(rows[0]).slice(0, 8).join(', ') + ')' };
+    }
+
+    var monitored = 0, down = 0;
+    rows.forEach(function (r) {
+      var cov = r.coverage_raw != null ? Number(r.coverage_raw) / 100 : parsePct(r.coverage);
+      if (cov == null || !isFinite(cov)) cov = 100;
+      var dt = parsePct(r[downKey]);
+      if (dt == null) dt = parsePct(r[downKey + '(RAW)']);
+      if (dt == null) dt = 0;
+      var secs = DAY * Math.min(Math.max(cov, 0), 100) / 100;
+      monitored += secs;
+      down += secs * Math.min(Math.max(dt, 0), 100) / 100;
+    });
+
+    var periodSecs = rows.length * DAY;
+    return {
+      uptime: monitored > 0 ? 100 * (1 - down / monitored) : null,
+      downSecs: down,
+      coverage: periodSecs > 0 ? 100 * monitored / periodSecs : 0,
+    };
+  }
+
+  // ------------------------------------------------------------------ formatting
+  function fmtPct(v) {
+    if (v == null) return 'n/a';
+    if (v >= 99.995) return '100%';
+    return (Math.floor(v * 1000) / 1000).toFixed(3) + '%';
+  }
+  function fmtDur(secs) {
+    var m = Math.round(secs / 60);
+    if (m === 0) return secs > 0 ? '< 1m' : '0m';
+    var d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+    return (d ? d + 'd ' : '') + (d || h ? h + 'h ' : '') + mm + 'm';
+  }
+  function grade(v, sla) {
+    if (v == null) return 'na';
+    if (v >= sla) return 'good';
+    if (v >= Math.min(99, sla - 0.5)) return 'warn';
+    return 'bad';
+  }
+  function setProgress(t) {
+    $('progress').hidden = !t;
+    $('progress').textContent = t || '';
+  }
+  function showError(t) {
+    $('error').hidden = !t;
+    $('error').textContent = t || '';
+  }
+
+  // ------------------------------------------------------------------ main
+  function run(monthStr, sla) {
+    var y = Number(monthStr.slice(0, 4)), m = Number(monthStr.slice(5, 7));
+    var start = new Date(y, m - 1, 1, 0, 0, 0);
+    var end = new Date(y, m, 1, 0, 0, 0);
+    var now = new Date();
+    var partial = end > now;
+    if (partial) end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    if (end <= start) return Promise.reject(new Error('That month has not started yet.'));
+
+    var label = start.toLocaleDateString([], { month: 'long', year: 'numeric' });
+    $('period').textContent = label + (partial ? ' (month to date, up to ' + end.toLocaleDateString() + ')' : '') +
+      ' · SLA target ' + sla + '%';
+
+    setProgress('Loading PRTG inventory…');
+    return loadInventory().then(function (inv) {
+      var jobs = [];
+      var panels = (CFG.panels || []).map(function (p) {
+        var rows = [];
+        (p.items || []).forEach(function (item) {
+          var hits = resolve(item, inv);
+          if (!hits.length) rows.push({ item: item, missing: 'not found in PRTG' });
+          hits.forEach(function (h) {
+            var row = { item: item, device: h.device, sensor: h.sensor, isDevice: h.isDevice, multi: hits.length > 1 };
+            if (!h.sensor) row.missing = 'device has no sensors';
+            else jobs.push(row);
+            rows.push(row);
+          });
+        });
+        return { title: p.title, rows: rows };
+      });
+
+      // Sequential on purpose: PRTG limits how fast historic data can be requested.
+      var i = 0;
+      function next() {
+        if (i >= jobs.length) return Promise.resolve();
+        var row = jobs[i++];
+        setProgress('Reading history ' + i + ' / ' + jobs.length + ': ' + (row.item.label || row.sensor.name) + '…');
+        return history(row.sensor.id, start, end)
+          .then(function (h) { row.result = availability(h); })
+          .catch(function (e) { row.result = { error: e.message }; })
+          .then(next);
+      }
+      return next().then(function () {
+        setProgress('');
+        return { panels: panels, label: label, partial: partial, start: start, end: end, sla: sla };
+      });
+    });
+  }
+
+  function render(res) {
+    var all = [];
+    res.panels.forEach(function (p) { p.rows.forEach(function (r) { all.push(r); }); });
+    var measured = all.filter(function (r) { return r.result && r.result.uptime != null; });
+    var below = measured.filter(function (r) { return r.result.uptime < res.sla; });
+    var worst = measured.slice().sort(function (a, b) { return a.result.uptime - b.result.uptime; })[0];
+    var avg = measured.length
+      ? measured.reduce(function (s, r) { return s + r.result.uptime; }, 0) / measured.length : null;
+    var totalDown = measured.reduce(function (s, r) { return s + r.result.downSecs; }, 0);
+    var failed = all.length - measured.length;
+
+    var k = $('kpis');
+    k.textContent = '';
+    function kpi(n, l, cls) {
+      var d = el('div', 'kpi ' + (cls || ''));
+      d.appendChild(el('div', 'n', n));
+      d.appendChild(el('div', 'l', l));
+      k.appendChild(d);
+    }
+    kpi(fmtPct(avg), 'Average availability', grade(avg, res.sla));
+    kpi(String(below.length) + ' / ' + measured.length, 'Below SLA (' + res.sla + '%)', below.length ? 'bad' : 'good');
+    kpi(fmtDur(totalDown), 'Total downtime (all items)');
+    kpi(worst ? fmtPct(worst.result.uptime) : 'n/a', 'Lowest: ' + (worst ? (worst.item.label || worst.sensor.name) : '-'), worst ? grade(worst.result.uptime, res.sla) : '');
+    if (failed) kpi(String(failed), 'Items without data', 'warn');
+    k.hidden = false;
+
+    var root = $('tables');
+    root.textContent = '';
+    res.panels.forEach(function (p) {
+      var box = el('section', 'panel');
+      box.appendChild(el('h2', null, p.title));
+      var t = el('table');
+      var hr = el('tr');
+      [['Item'], ['Availability', 'num'], ['Downtime', 'num'], ['Monitored', 'num'], [''], ['Notes']].forEach(function (h) {
+        hr.appendChild(el('th', h[1] || null, h[0]));
+      });
+      var thead = el('thead'); thead.appendChild(hr); t.appendChild(thead);
+      var tb = el('tbody');
+      p.rows.forEach(function (r) {
+        var tr = el('tr');
+        var name = el('td');
+        name.appendChild(document.createTextNode(r.item.label && !r.multi ? r.item.label : (r.sensor ? r.sensor.name : (r.item.label || r.item.sensor || r.item.device || 'ID ' + r.item.id))));
+        if (r.sensor) name.appendChild(el('span', 'via', r.device + (r.isDevice ? ' · via ' + r.sensor.name : '') + ' · #' + r.sensor.id));
+        tr.appendChild(name);
+
+        var res1 = r.result || {};
+        var g = grade(res1.uptime, res.sla);
+        tr.appendChild(el('td', 'num up ' + g, fmtPct(res1.uptime)));
+        tr.appendChild(el('td', 'num', res1.downSecs != null ? fmtDur(res1.downSecs) : '-'));
+        tr.appendChild(el('td', 'num', res1.coverage != null ? Math.round(res1.coverage) + '%' : '-'));
+        var barTd = el('td');
+        if (res1.uptime != null) {
+          var bar = el('div', 'bar ' + g);
+          var fill = el('span');
+          // scale 95-100% across the bar so small differences are visible
+          fill.style.width = Math.max(2, Math.min(100, (res1.uptime - 95) * 20)) + '%';
+          bar.appendChild(fill);
+          barTd.appendChild(bar);
+        }
+        tr.appendChild(barTd);
+        var note = r.missing || res1.error || (res1.coverage != null && res1.coverage < 95 ? 'monitored only ' + Math.round(res1.coverage) + '% of the period' : '');
+        tr.appendChild(el('td', 'note', note));
+        tb.appendChild(tr);
+      });
+      t.appendChild(tb);
+      box.appendChild(t);
+      root.appendChild(box);
+    });
+
+    var foot = $('foot');
+    foot.hidden = false;
+    foot.textContent = 'Source: PRTG historic data (daily averages), ' + res.start.toLocaleString() + ' – ' + res.end.toLocaleString() +
+      '. Availability = 100% − PRTG "Downtime", over the time each sensor was actually monitored (paused time excluded). ' +
+      'Devices are measured by their Ping sensor. Generated ' + new Date().toLocaleString() + (DEMO ? ' · DEMO DATA' : '') + '.';
+
+    document.title = CFG.title + ' – Availability ' + res.label;
+    $('csv').disabled = false;
+    $('print').disabled = false;
+  }
+
+  function toCsv(res) {
+    var lines = [['Panel', 'Item', 'Device', 'Sensor ID', 'Availability %', 'Downtime minutes', 'Monitored %', 'Notes']];
+    res.panels.forEach(function (p) {
+      p.rows.forEach(function (r) {
+        var x = r.result || {};
+        lines.push([
+          p.title,
+          r.item.label || (r.sensor && r.sensor.name) || '',
+          r.device || '',
+          r.sensor ? r.sensor.id : '',
+          x.uptime != null ? x.uptime.toFixed(4) : '',
+          x.downSecs != null ? (x.downSecs / 60).toFixed(1) : '',
+          x.coverage != null ? x.coverage.toFixed(1) : '',
+          r.missing || x.error || '',
+        ]);
+      });
+    });
+    return lines.map(function (l) {
+      return l.map(function (v) {
+        var s = String(v);
+        if (/^[=+\-@]/.test(s)) s = "'" + s; // no formula injection when opened in Excel
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(',');
+    }).join('\r\n');
+  }
+
+  // ------------------------------------------------------------------ wire up
+  var prev = new Date(); prev.setDate(1); prev.setMonth(prev.getMonth() - 1);
+  $('month').value = params.get('month') || (prev.getFullYear() + '-' + pad(prev.getMonth() + 1));
+  $('sla').value = params.get('sla') || CFG.slaTarget;
+  $('title').textContent = CFG.title.replace(/\s*NOC$/i, '') + ' – Availability Report';
+
+  $('controls').addEventListener('submit', function (e) {
+    e.preventDefault();
+    showError('');
+    $('go').disabled = true;
+    var sla = parseFloat($('sla').value) || CFG.slaTarget;
+    run($('month').value, sla)
+      .then(function (res) { lastResult = res; render(res); })
+      .catch(function (err) { setProgress(''); showError(err.message || String(err)); })
+      .then(function () { $('go').disabled = false; });
+  });
+
+  $('csv').addEventListener('click', function () {
+    if (!lastResult) return;
+    var blob = new Blob(['﻿' + toCsv(lastResult)], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'availability-' + $('month').value + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  });
+
+  $('print').addEventListener('click', function () { window.print(); });
+
+  if (params.has('auto') || DEMO) $('controls').requestSubmit();
+  if (params.has('demo') && !DEMO) showError('Demo data is not bundled in this build.');
+})();
+
+</script>
+</body>
+</html>

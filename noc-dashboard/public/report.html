@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Availability Report</title>
+  <link rel="stylesheet" href="report.css">
+</head>
+<body>
+  <header class="head">
+    <div>
+      <h1 id="title">Availability Report</h1>
+      <div class="sub" id="period">Select a month and press Generate</div>
+    </div>
+    <form class="controls" id="controls">
+      <label>Month <input type="month" id="month" required></label>
+      <label>SLA target % <input type="number" id="sla" step="0.01" min="0" max="100"></label>
+      <button type="submit" id="go">Generate</button>
+      <button type="button" id="csv" disabled>Export CSV</button>
+      <button type="button" id="print" disabled>Print / PDF</button>
+    </form>
+  </header>
+
+  <div class="progress" id="progress" hidden></div>
+  <div class="error" id="error" hidden></div>
+
+  <section class="kpis" id="kpis" hidden></section>
+  <main id="tables"></main>
+
+  <footer class="foot" id="foot" hidden></footer>
+
+  <script src="config.js"></script>
+  <script src="report.js"></script>
+</body>
+</html>

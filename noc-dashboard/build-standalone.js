@@ -26,19 +26,24 @@ const config = pub('config.js').replace(
   "  source: 'prtg',  // single-file mode: read the PRTG API directly\n"
 );
 
-let html = pub('index.html')
-  .replace('<link rel="stylesheet" href="app.css">', () => '<style>\n' + pub('app.css') + '\n</style>')
-  .replace('<script src="config.js"></script>', () => '<script>\n' + js(config) + '\n</script>')
-  .replace('<script src="demo-data.js"></script>', () => '<script>\n' + js(pub('demo-data.js')) + '\n</script>')
-  .replace('<script src="app.js"></script>', () => '<script>\n' + js(pub('app.js')) + '\n</script>');
+// --page report.html builds the availability report instead of the dashboard
+const argv = process.argv.slice(2);
+const pageIdx = argv.indexOf('--page');
+const page = pageIdx >= 0 ? argv.splice(pageIdx, 2)[1] : 'index.html';
+
+// Inline every local stylesheet and script the page references.
+let html = pub(page)
+  .replace(/<link rel="stylesheet" href="([\w.-]+)">/g, (m, f) => '<style>\n' + pub(f) + '\n</style>')
+  .replace(/<script src="([\w.-]+)"><\/script>/g, (m, f) =>
+    '<script>\n' + js(f === 'config.js' ? config : pub(f)) + '\n</script>');
 
 html = html.replace('<!doctype html>', '<!doctype html>\n<!-- PRTG NOC Dashboard - single-file build. Edit NOC_CONFIG below to change layout. -->');
 
-if (/(src|href)="(app|config|demo-data)\./.test(html)) throw new Error('bundle incomplete');
+if (/<(script src|link rel="stylesheet" href)="[\w.-]+"/.test(html)) throw new Error('bundle incomplete');
 
 // Optional overlays (site layout, secrets) applied after config.js:
 //   node build-standalone.js sites/asl-noc.js local/secrets.js -o local/noc2.htm
-const args = process.argv.slice(2);
+const args = argv;
 let out = path.join('dist', 'noc-dashboard.htm');
 const overlays = [];
 for (let i = 0; i < args.length; i++) {

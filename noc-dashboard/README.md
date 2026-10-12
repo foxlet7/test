@@ -30,6 +30,14 @@ Notes:
 - To change the layout, edit the `window.NOC_CONFIG = {...}` block near the top of the file.
 - For a wall screen, log it in as a dedicated **read-only** PRTG user.
 
+## Monthly availability report
+
+`noc-uptime.htm` (build: `node build-standalone.js --page report.html sites/<site>.js local/secrets.js -o local/noc-uptime.htm`)
+reports availability for every item on the dashboard for a chosen month, using PRTG historic data
+(daily averages of each sensor's `Downtime` and coverage). Copy it next to the dashboard in webroot,
+pick a month, press Generate, then Export CSV or Print / PDF. Devices are measured by their Ping sensor.
+History is requested one sensor at a time and retried automatically if PRTG throttles it.
+
 ## Server install: Node backend (API key kept off the screen)
 
 
