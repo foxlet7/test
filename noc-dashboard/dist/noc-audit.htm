@@ -1,0 +1,483 @@
+<!doctype html>
+<!-- PRTG NOC Dashboard - single-file build. Edit NOC_CONFIG below to change layout. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Sensor Audit</title>
+  <style>
+:root {
+  --bg: #f6f7f9;
+  --paper: #ffffff;
+  --text: #1b2430;
+  --muted: #5f6b7a;
+  --border: #dde2e8;
+  --good: #1a7f37;
+  --warn: #b7791f;
+  --bad: #c62828;
+  --na: #8b949e;
+  --accent: #0b5cad;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+
+.head {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem;
+  padding: 1.2rem 1.5rem; background: var(--paper); border-bottom: 3px solid var(--accent);
+}
+.head h1 { margin: 0; font-size: 1.5rem; }
+.head .sub { color: var(--muted); }
+
+.controls { display: flex; flex-wrap: wrap; gap: .6rem; align-items: flex-end; }
+.controls label { display: flex; flex-direction: column; font-size: .75rem; color: var(--muted); gap: .2rem; }
+.controls input { font: inherit; padding: .35rem .5rem; border: 1px solid var(--border); border-radius: 6px; }
+.controls input[type=number] { width: 6.5rem; }
+.controls button {
+  font: inherit; font-weight: 600; padding: .45rem .9rem; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--accent); background: var(--accent); color: #fff;
+}
+.controls button[type=button] { background: var(--paper); color: var(--accent); }
+.controls button:disabled { opacity: .45; cursor: default; }
+
+.progress, .error { margin: 1rem 1.5rem 0; padding: .7rem 1rem; border-radius: 6px; }
+.progress { background: #e8f1fb; color: var(--accent); }
+.error { background: #fdecea; color: var(--bad); white-space: pre-wrap; }
+[hidden] { display: none !important; }
+
+.kpis {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .8rem;
+  margin: 1rem 1.5rem 0;
+}
+.kpi { background: var(--paper); border: 1px solid var(--border); border-radius: 8px; padding: .8rem 1rem; }
+.kpi .n { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi .l { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; }
+.kpi.good .n { color: var(--good); }
+.kpi.warn .n { color: var(--warn); }
+.kpi.bad .n { color: var(--bad); }
+
+main { padding: 0 1.5rem 1rem; }
+
+.panel { background: var(--paper); border: 1px solid var(--border); border-radius: 8px; margin-top: 1rem; overflow: hidden; break-inside: avoid; }
+.panel h2 { margin: 0; padding: .6rem 1rem; font-size: 1rem; background: #eef2f6; border-bottom: 1px solid var(--border); }
+
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+th:nth-child(1) { width: 36%; }
+th:nth-child(2) { width: 12%; }
+th:nth-child(3) { width: 11%; }
+th:nth-child(4) { width: 10%; }
+th:nth-child(5) { width: 13%; }
+td { overflow: hidden; text-overflow: ellipsis; }
+th, td { padding: .45rem 1rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
+th { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td .via { display: block; color: var(--muted); font-size: .78rem; }
+td.up { font-weight: 700; }
+td.up.good { color: var(--good); }
+td.up.warn { color: var(--warn); }
+td.up.bad { color: var(--bad); }
+td.up.na { color: var(--na); font-weight: 400; }
+td.note { color: var(--muted); font-size: .8rem; }
+
+.bar { width: 9rem; height: .55rem; background: #e9edf1; border-radius: 99px; overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--good); }
+.bar.warn span { background: var(--warn); }
+.bar.bad span { background: var(--bad); }
+
+.foot { margin: 1rem 1.5rem 2rem; color: var(--muted); font-size: .78rem; }
+
+@media (max-width: 700px) {
+  .head, main { padding-left: 1rem; padding-right: 1rem; }
+  .kpis, .progress, .error, .foot { margin-left: 1rem; margin-right: 1rem; }
+  th:nth-child(5), td:nth-child(5), th:nth-child(6), td:nth-child(6) { display: none; }
+}
+
+@media print {
+  body { background: #fff; font-size: 11px; }
+  .controls, .progress { display: none !important; }
+  .head { border-bottom-width: 2px; padding: 0 0 .6rem; }
+  .kpis, main, .foot { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
+  .panel { border-color: #ccc; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* audit page tables: natural column widths */
+table.audit { table-layout: auto; }
+table.audit th { width: auto !important; }
+table.audit td { overflow: visible; }
+
+</style>
+</head>
+<body>
+  <header class="head">
+    <div>
+      <h1 id="title">Sensor Audit</h1>
+      <div class="sub" id="period">Reads every sensor the PRTG user can see</div>
+    </div>
+    <form class="controls" id="controls">
+      <label>Licence limit <input type="number" id="limit" min="1"></label>
+      <label>"Long down" after (days) <input type="number" id="days" min="1"></label>
+      <button type="submit" id="go">Run audit</button>
+      <button type="button" id="csv" disabled>Export CSV</button>
+      <button type="button" id="print" disabled>Print / PDF</button>
+    </form>
+  </header>
+
+  <div class="progress" id="progress" hidden></div>
+  <div class="error" id="error" hidden></div>
+
+  <section class="kpis" id="kpis" hidden></section>
+  <main id="tables"></main>
+  <footer class="foot" id="foot" hidden></footer>
+
+  <script>
+/*
+ * NOC dashboard layout config - edit this file, no code changes needed.
+ *
+ * sections: rendered top-to-bottom in this order (think: traffic path,
+ * Internet -> Firewall -> Core -> Access -> Servers).
+ * A device goes into the FIRST section it matches:
+ *   tags    - PRTG tags on the device (exact, case-insensitive)
+ *   groups  - regex tested against the device's PRTG group name
+ *   devices - regex tested against the device name
+ *
+ * Devices that match nothing go into a section named after their PRTG group
+ * (unmatched: 'group') or into one "Other" section (unmatched: 'other').
+ */
+window.NOC_CONFIG = {
+  // =====================================================================
+  //  PASTE YOUR PRTG LOGIN DETAILS HERE  (use a READ-ONLY PRTG user)
+  //  Option A: API key  ->  apiToken: 'xxxxxxxx',
+  //  Option B: user + passhash  ->  username: 'noc-screen', passhash: '1234567890',
+  //  Anyone who can open this page can read these values in the source.
+  // =====================================================================
+  apiToken: '',
+  username: '',
+  passhash: '',
+  // =====================================================================
+
+  source: 'prtg',  // single-file mode: read the PRTG API directly
+
+  title: 'NOC Dashboard',
+  subtitle: 'PRTG live status',
+
+  refreshSeconds: 30,       // how often the screen polls the backend
+  staleAfterSeconds: 120,   // after this with no good update, screen goes "STALE"
+  reloadPageHours: 6,       // full page reload every N hours (picks up a replaced file); 0 = never
+
+  sections: [
+    { title: 'WAN / Internet',        tags: ['noc-wan'],    groups: ['wan', 'internet', 'isp', 'circuit'] },
+    { title: 'Firewalls',             tags: ['noc-fw'],     groups: ['firewall', 'fortigate', 'fgt'] },
+    { title: 'Core',                  tags: ['noc-core'],   groups: ['core'] },
+    { title: 'Distribution / Access', tags: ['noc-access'], groups: ['distribution', 'access', 'switch'] },
+    { title: 'Servers',               tags: ['noc-server'], groups: ['server', 'domain', 'dc\\b'] },
+    { title: 'Branches',              tags: ['noc-branch'], groups: ['branch', 'site'] },
+  ],
+  unmatched: 'group',
+
+  excludeGroups: [],         // regex list, e.g. ['^Lab', 'Test']
+  hidePausedDevices: false,  // hide devices that are fully paused
+  sortDevices: 'name',       // 'name' keeps tiles in fixed positions; 'severity' floats problems to the front
+  showHost: true,            // show device IP/hostname on tiles
+  maxProblemsPerTile: 3,     // problem sensors listed inside each tile
+
+  // ---- Show ONLY selected sensors/devices (like your old map) -------------
+  // Put PRTG object IDs here (sensor IDs or device IDs - a device ID shows all
+  // its sensors). Find an ID in the PRTG URL: .../sensor.htm?id=2045 -> 2045
+  // Leave both empty to show everything the PRTG user can see.
+  onlyIds: [],
+  onlyTags: [],              // or: tag the sensors in PRTG (e.g. 'noc') and list the tag here
+  showAllSensors: 'auto',    // list every selected sensor with its value ('auto' = when filtering)
+  maxSensorsPerTile: 8,
+  maxAlerts: 50,             // max rows in the alert panel
+  alertStatuses: ['down', 'warn', 'unusual', 'ack'], // what counts as an alert in the right panel
+};
+
+</script>
+  <script>
+(function () {
+  'use strict';
+
+  /*
+   * Sensor audit: which PRTG sensors can go (to free licence slots) and where
+   * monitoring is thin. Read-only - it never changes anything in PRTG.
+   */
+  var CFG = Object.assign({
+    title: 'NOC', panels: [], prtgBase: '', apiToken: '', username: '', passhash: '',
+    licenceLimit: 100, longDownDays: 7,
+  }, window.NOC_CONFIG || {});
+
+  var params = new URLSearchParams(location.search);
+  var last = null;
+
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function authQuery() {
+    if (CFG.apiToken) return '&apitoken=' + encodeURIComponent(CFG.apiToken);
+    if (CFG.username && CFG.passhash) {
+      return '&username=' + encodeURIComponent(CFG.username) + '&passhash=' + encodeURIComponent(CFG.passhash);
+    }
+    return '';
+  }
+  function api(path) {
+    return fetch((CFG.prtgBase || '') + path + authQuery(), {
+      cache: 'no-store', credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+    }).then(function (r) {
+      if (r.status === 401 || r.status === 403) throw new Error('PRTG refused the request (HTTP ' + r.status + ') - check the API key in the file');
+      if (!r.ok) throw new Error('PRTG returned HTTP ' + r.status);
+      return r.json();
+    });
+  }
+  var parser = new DOMParser();
+  function strip(s) {
+    var str = String(s == null ? '' : s);
+    if (str.indexOf('<') < 0 && str.indexOf('&') < 0) return str.trim();
+    return (parser.parseFromString(str, 'text/html').body.textContent || '').trim();
+  }
+  function num(v) { var n = Number(v); return isFinite(n) ? n : null; }
+
+  var PAUSED = { 7: 'Paused by user', 8: 'Paused by dependency', 9: 'Paused by schedule', 12: 'Paused until' };
+  var DOWN = { 5: 'Down', 13: 'Down (ack)', 14: 'Partial down' };
+  var SYSTEM = /^(core health|probe health|system health|core health \(autonomous\)|cluster health)/i;
+
+  function load() {
+    return Promise.all([
+      api('/api/table.json?content=sensors&output=json&count=50000' +
+        '&columns=objid,parentid,probe,group,device,sensor,type,status,message,lastvalue,interval,downtimesince,tags'),
+      api('/api/table.json?content=devices&output=json&count=50000&columns=objid,group,device,host,status,totalsens'),
+    ]).then(function (r) {
+      return {
+        sensors: (r[0].sensors || []).map(function (s) {
+          return {
+            id: num(s.objid), deviceId: num(s.parentid), group: strip(s.group), device: strip(s.device),
+            name: strip(s.sensor), type: strip(s.type), status: num(s.status_raw), statusText: strip(s.status),
+            message: strip(s.message_raw != null ? s.message_raw : s.message), lastValue: strip(s.lastvalue),
+            lastRaw: num(s.lastvalue_raw), interval: strip(s.interval),
+            downSecs: num(s.downtimesince_raw), downText: strip(s.downtimesince),
+          };
+        }),
+        devices: (r[1].devices || []).map(function (d) {
+          return { id: num(d.objid), group: strip(d.group), name: strip(d.device), host: strip(d.host) };
+        }),
+      };
+    });
+  }
+
+  // IDs the dashboard shows (by ID; name-matched items are approximated by name)
+  function dashboardIds(inv) {
+    var ids = {};
+    (CFG.panels || []).forEach(function (p) {
+      (p.items || []).forEach(function (it) {
+        if (it.id != null) ids[Number(it.id)] = true;
+      });
+    });
+    return ids;
+  }
+
+  function analyse(inv, limit, days) {
+    var onDash = dashboardIds(inv);
+    var byDevice = {};
+    inv.sensors.forEach(function (s) { (byDevice[s.deviceId] = byDevice[s.deviceId] || []).push(s); });
+
+    var del = [], fix = [], add = [];
+
+    inv.sensors.forEach(function (s) {
+      if (PAUSED[s.status]) {
+        del.push({ s: s, why: PAUSED[s.status] + ' - still uses a licence slot', sev: 1 });
+      } else if (DOWN[s.status] && s.downSecs != null && s.downSecs > days * 86400) {
+        del.push({ s: s, why: DOWN[s.status] + ' for ' + (s.downText || Math.round(s.downSecs / 86400) + ' d') + ' - fix it or delete it', sev: 2 });
+      } else if (DOWN[s.status] || s.status === 4 || s.status === 10) {
+        fix.push({ s: s, why: s.statusText + (s.message ? ': ' + s.message : '') });
+      }
+    });
+
+    // duplicates: same device + same type + same name, or 2+ Ping sensors on one device
+    Object.keys(byDevice).forEach(function (dev) {
+      var seen = {};
+      var pings = [];
+      byDevice[dev].forEach(function (s) {
+        var key = s.type.toLowerCase() + '|' + s.name.replace(/\s+/g, '').toLowerCase();
+        if (seen[key]) del.push({ s: s, why: 'Duplicate of #' + seen[key].id + ' (same type and name on this device)', sev: 3 });
+        else seen[key] = s;
+        if (/ping/i.test(s.type) || /^ping\b/i.test(s.name)) pings.push(s);
+      });
+      if (pings.length > 1) {
+        pings.slice(1).forEach(function (s) {
+          if (!del.some(function (d) { return d.s === s; })) {
+            del.push({ s: s, why: 'Second Ping sensor on this device (#' + pings[0].id + ' already pings it)', sev: 3 });
+          }
+        });
+      }
+    });
+
+    // traffic sensors idle right now and not on the dashboard: candidates to review
+    inv.sensors.forEach(function (s) {
+      if (/traffic/i.test(s.type + ' ' + s.name) && s.lastRaw === 0 && !onDash[s.id] && !PAUSED[s.status] &&
+          !del.some(function (d) { return d.s === s; })) {
+        del.push({ s: s, why: 'Traffic sensor reading 0 right now - check the interface is still in use', sev: 4 });
+      }
+    });
+
+    // gaps on dashboard devices: only one sensor (usually just Ping)
+    inv.devices.forEach(function (d) {
+      var list = byDevice[d.id] || [];
+      var dashDevice = onDash[d.id] || list.some(function (s) { return onDash[s.id]; });
+      var isFw = /forti|fgt|firewall/i.test(d.name + ' ' + d.group);
+      if (dashDevice && list.length <= 1) {
+        add.push({ d: d, why: 'On the dashboard with only ' + list.length + ' sensor' + (list.length === 1 ? ' (' + list[0].name + ')' : '') +
+          ' - it shows the box answers ping, not that the service works', idea: suggestFor(d) });
+      }
+      if (isFw && !list.some(function (s) { return /cpu|memory|ha\b|cluster|session/i.test(s.name); })) {
+        add.push({ d: d, why: 'FortiGate with no CPU / memory / HA / session sensor', idea: 'SNMP Fortinet FortiGate sensor (CPU, memory, sessions in one sensor) - check your PRTG version lists it' });
+      }
+    });
+
+    del.sort(function (a, b) { return a.sev - b.sev || a.s.device.localeCompare(b.s.device); });
+
+    var counted = inv.sensors.length;
+    return { del: del, fix: fix, add: add, total: counted, limit: limit, onDashCount: Object.keys(onDash).length };
+  }
+
+  function suggestFor(d) {
+    var n = d.name.toLowerCase();
+    if (/ad0|dns|ads|domain|dc/.test(n)) return 'DNS v2 sensor (resolves a name) or an Active Directory replication sensor';
+    if (/freeswitch|sip|voip|pbx/.test(n)) return 'SIP Options sensor (checks the SIP service answers)';
+    if (/switch|core|sw/.test(n)) return 'SNMP CPU Load or the uplink SNMP Traffic sensor';
+    if (/genesys|cloud|http|web/.test(n)) return 'HTTP sensor on the service URL';
+    if (/fsso|collector/.test(n)) return 'Port sensor on the FSSO collector port (8000 by default)';
+    return 'a service check (Port / HTTP) for what this device actually does';
+  }
+
+  // ------------------------------------------------------------------ render
+  function table(title, cols, rows, empty) {
+    var box = el('section', 'panel');
+    box.appendChild(el('h2', null, title + ' (' + rows.length + ')'));
+    if (!rows.length) {
+      var p = el('p', 'note', empty);
+      p.style.padding = '.6rem 1rem';
+      box.appendChild(p);
+      return box;
+    }
+    var t = el('table', 'audit');
+    var hr = el('tr');
+    cols.forEach(function (c) { hr.appendChild(el('th', null, c[0])); });
+    var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+    var tb = el('tbody');
+    rows.forEach(function (r) {
+      var tr = el('tr');
+      cols.forEach(function (c) { tr.appendChild(el('td', c[2] || null, c[1](r))); });
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    box.appendChild(t);
+    return box;
+  }
+
+  function render(a) {
+    var k = $('kpis');
+    k.textContent = '';
+    function kpi(n, l, cls) {
+      var d = el('div', 'kpi ' + (cls || ''));
+      d.appendChild(el('div', 'n', n));
+      d.appendChild(el('div', 'l', l));
+      k.appendChild(d);
+    }
+    var free = a.limit - a.total;
+    var freeable = a.del.filter(function (d) { return d.sev <= 3; }).length;
+    kpi(a.total + ' / ' + a.limit, 'Sensors used / licence', free <= 5 ? 'bad' : free <= 15 ? 'warn' : 'good');
+    kpi(String(free), 'Free slots now', free <= 5 ? 'bad' : 'good');
+    kpi(String(freeable), 'Could be freed (paused, long down, duplicate)', freeable ? 'good' : '');
+    kpi(String(a.fix.length), 'Currently in alarm', a.fix.length ? 'warn' : 'good');
+    kpi(String(a.add.length), 'Monitoring gaps found', a.add.length ? 'warn' : 'good');
+    k.hidden = false;
+
+    var sensorCols = [
+      ['Sensor', function (r) { return r.s.name + '  (#' + r.s.id + ')'; }],
+      ['Device', function (r) { return r.s.device; }],
+      ['Type', function (r) { return r.s.type; }],
+      ['Why', function (r) { return r.why; }, 'note'],
+    ];
+    var root = $('tables');
+    root.textContent = '';
+    root.appendChild(table('Candidates to delete or fix', sensorCols, a.del,
+      'Nothing paused, long-down or duplicated.'));
+    root.appendChild(table('Currently in alarm (fix, don\'t delete)', sensorCols, a.fix, 'No sensors in alarm.'));
+    root.appendChild(table('Monitoring gaps (consider adding)', [
+      ['Device', function (r) { return r.d.name; }],
+      ['Group', function (r) { return r.d.group; }],
+      ['Gap', function (r) { return r.why; }, 'note'],
+      ['Suggested sensor', function (r) { return r.idea; }, 'note'],
+    ], a.add, 'No obvious gaps on dashboard devices.'));
+
+    var foot = $('foot');
+    foot.hidden = false;
+    foot.textContent = 'Read-only audit - nothing was changed in PRTG. Paused sensors still count against the licence. ' +
+      '"Idle traffic" rows only reflect the value right now; check the 30-day graph before deleting. ' +
+      'Generated ' + new Date().toLocaleString() + '.';
+    $('csv').disabled = false;
+    $('print').disabled = false;
+  }
+
+  function toCsv(a) {
+    var lines = [['Section', 'Sensor ID', 'Sensor', 'Device', 'Type', 'Reason / gap', 'Suggestion']];
+    a.del.forEach(function (r) { lines.push(['Delete/fix', r.s.id, r.s.name, r.s.device, r.s.type, r.why, '']); });
+    a.fix.forEach(function (r) { lines.push(['In alarm', r.s.id, r.s.name, r.s.device, r.s.type, r.why, '']); });
+    a.add.forEach(function (r) { lines.push(['Gap', '', '', r.d.name, '', r.why, r.idea]); });
+    return lines.map(function (l) {
+      return l.map(function (v) {
+        var s = String(v == null ? '' : v);
+        if (/^[=+\-@]/.test(s)) s = "'" + s;
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(',');
+    }).join('\r\n');
+  }
+
+  $('limit').value = params.get('limit') || CFG.licenceLimit;
+  $('days').value = params.get('days') || CFG.longDownDays;
+  $('title').textContent = CFG.title.replace(/\s*NOC$/i, '') + ' – Sensor Audit';
+
+  $('controls').addEventListener('submit', function (e) {
+    e.preventDefault();
+    $('error').hidden = true;
+    $('progress').hidden = false;
+    $('progress').textContent = 'Reading all sensors from PRTG…';
+    $('go').disabled = true;
+    load()
+      .then(function (inv) {
+        last = analyse(inv, Number($('limit').value) || 100, Number($('days').value) || 7);
+        render(last);
+      })
+      .catch(function (err) { $('error').hidden = false; $('error').textContent = err.message; })
+      .then(function () { $('progress').hidden = true; $('go').disabled = false; });
+  });
+  $('csv').addEventListener('click', function () {
+    if (!last) return;
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + toCsv(last)], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'sensor-audit.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  });
+  $('print').addEventListener('click', function () { window.print(); });
+
+  if (params.has('auto')) $('controls').requestSubmit();
+})();
+
+</script>
+</body>
+</html>

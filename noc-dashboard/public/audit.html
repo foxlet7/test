@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Sensor Audit</title>
+  <link rel="stylesheet" href="report.css">
+</head>
+<body>
+  <header class="head">
+    <div>
+      <h1 id="title">Sensor Audit</h1>
+      <div class="sub" id="period">Reads every sensor the PRTG user can see</div>
+    </div>
+    <form class="controls" id="controls">
+      <label>Licence limit <input type="number" id="limit" min="1"></label>
+      <label>"Long down" after (days) <input type="number" id="days" min="1"></label>
+      <button type="submit" id="go">Run audit</button>
+      <button type="button" id="csv" disabled>Export CSV</button>
+      <button type="button" id="print" disabled>Print / PDF</button>
+    </form>
+  </header>
+
+  <div class="progress" id="progress" hidden></div>
+  <div class="error" id="error" hidden></div>
+
+  <section class="kpis" id="kpis" hidden></section>
+  <main id="tables"></main>
+  <footer class="foot" id="foot" hidden></footer>
+
+  <script src="config.js"></script>
+  <script src="audit.js"></script>
+</body>
+</html>

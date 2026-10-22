@@ -99,3 +99,8 @@ td.note { color: var(--muted); font-size: .8rem; }
   .panel { border-color: #ccc; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* audit page tables: natural column widths */
+table.audit { table-layout: auto; }
+table.audit th { width: auto !important; }
+table.audit td { overflow: visible; }
