@@ -2,3 +2,5 @@
 node_modules/
 *.log
 local/
+fw-exports/
+*.fwexport.txt

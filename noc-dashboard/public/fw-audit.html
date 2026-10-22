@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <!-- Offline by design: this page may not make any network request. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+  <title>Firewall Policy Audit</title>
+  <link rel="stylesheet" href="report.css">
+  <link rel="stylesheet" href="fw-audit.css">
+</head>
+<body>
+  <header class="head">
+    <div>
+      <h1>FortiGate Policy Audit</h1>
+      <div class="sub">Runs entirely in this browser tab. Nothing is uploaded; the page cannot make network requests.</div>
+    </div>
+    <div class="controls">
+      <button type="button" id="go">Analyse</button>
+      <button type="button" id="csv" disabled>Export CSV</button>
+      <button type="button" id="print" disabled>Print / PDF</button>
+      <button type="button" id="clear">Clear</button>
+    </div>
+  </header>
+
+  <section class="inputs">
+    <div class="box">
+      <label for="policies">1. Policies <b>(required)</b> &mdash; output of <code>show firewall policy</code></label>
+      <textarea id="policies" spellcheck="false" placeholder="config firewall policy&#10;    edit 1&#10;        set name ...&#10;    next&#10;end"></textarea>
+      <input type="file" id="f-policies" accept=".txt,.conf,.log,.cfg">
+    </div>
+    <div class="box">
+      <label for="hits">2. Hit counts <i>(optional)</i> &mdash; finds unused policies</label>
+      <textarea id="hits" spellcheck="false" placeholder="Any of:&#10;&bull; diagnose firewall iprope list 00100004&#10;&bull; CSV exported from the GUI policy table (ID, Hit Count, Last Used)&#10;&bull; plain lines:  173 5021 2 day(s) ago"></textarea>
+      <input type="file" id="f-hits" accept=".txt,.csv,.log">
+    </div>
+    <div class="box">
+      <label for="objects">3. Objects <i>(optional)</i> &mdash; better overlap detection, unused objects</label>
+      <textarea id="objects" spellcheck="false" placeholder="show firewall address&#10;show firewall addrgrp&#10;show firewall service custom&#10;show firewall service group&#10;(paste any or all, in one box)"></textarea>
+      <input type="file" id="f-objects" accept=".txt,.conf,.log,.cfg">
+    </div>
+  </section>
+
+  <section class="opts">
+    <label>WAN interface names (regex) <input id="o-wan"></label>
+    <label>Untrusted networks (regex) <input id="o-untrusted"></label>
+    <label>Sensitive networks (regex) <input id="o-sensitive"></label>
+    <label>Stale after (days) <input type="number" id="o-stale" min="1"></label>
+  </section>
+
+  <div class="error" id="error" hidden></div>
+  <section class="kpis" id="kpis" hidden></section>
+  <main id="out"></main>
+  <footer class="foot" id="foot" hidden></footer>
+
+  <script src="fw-core.js"></script>
+  <script src="fw-audit-ui.js"></script>
+</body>
+</html>

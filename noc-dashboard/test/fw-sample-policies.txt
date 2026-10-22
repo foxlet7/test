@@ -1,0 +1,130 @@
+FortiGate # show firewall policy
+config firewall policy
+    edit 1
+        set name "Staff-Admin-WAN"
+        set srcintf "lan"
+        set dstintf "virtual-wan-link"
+        set action accept
+        set srcaddr "Admin-PC"
+        set dstaddr "all"
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+        set nat enable
+    next
+    edit 2
+        set name "Block-SMTP"
+        set srcintf "any"
+        set dstintf "virtual-wan-link"
+        set srcaddr "all"
+        set dstaddr "all"
+        set schedule "always"
+        set service "SMTP"
+        set logtraffic all
+    next
+    edit 3
+        set name "Staff-WAN-1"
+        set srcintf "lan"
+        set dstintf "virtual-wan-link"
+        set action accept
+        set srcaddr "Staff-Net"
+        set dstaddr "all"
+        set schedule "always"
+        set service "ALL_TCP" "ALL_UDP" "ALL_ICMP" "HTTPS" "SMTP" "MYSQL"
+        set utm-status enable
+        set av-profile "default"
+        set webfilter-profile "strict"
+        set ips-sensor "default"
+        set logtraffic all
+        set nat enable
+        set groups "VPN-Users" "MFATEST"
+    next
+    edit 4
+        set name "Staff-WAN-1-copy"
+        set srcintf "lan"
+        set dstintf "virtual-wan-link"
+        set action accept
+        set srcaddr "Staff-Net"
+        set dstaddr "all"
+        set schedule "always"
+        set service "ALL"
+        set utm-status enable
+        set webfilter-profile "strict"
+        set logtraffic all
+        set nat enable
+        set comments " (Copy of Staff-WAN-1)"
+    next
+    edit 5
+        set name "Guest-to-DC"
+        set srcintf "guest-wifi"
+        set dstintf "data-center"
+        set action accept
+        set srcaddr "all"
+        set dstaddr "DC-Servers"
+        set schedule "always"
+        set service "DNS" "SAMBA" "Windows AD"
+        set utm-status enable
+        set ips-sensor "default"
+        set logtraffic all
+    next
+    edit 6
+        set name "Test-SBC-Service"
+        set srcintf "virtual-wan-link"
+        set dstintf "data-center"
+        set action accept
+        set srcaddr "all"
+        set dstaddr "SBC-VIP"
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+    next
+    edit 7
+        set name "Old-Printer"
+        set status disable
+        set srcintf "lan"
+        set dstintf "data-center"
+        set action accept
+        set srcaddr "Printers"
+        set dstaddr "DC-Servers"
+        set schedule "always"
+        set service "ALL"
+    next
+    edit 8
+        set srcintf "ssl.root"
+        set dstintf "data-center"
+        set action accept
+        set srcaddr "SSLVPN_TUNNEL_ADDR1"
+        set dstaddr "DC-Servers"
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+        set groups "G1" "G2" "G3" "G4" "G5" "MFATEST"
+        set comments " (Copy of x)"
+    next
+    edit 9
+        set name "Lan-any"
+        set srcintf "lan"
+        set dstintf "any"
+        set action accept
+        set srcaddr "all"
+        set dstaddr "all"
+        set schedule "always"
+        set service "ALL"
+        set logtraffic disable
+    next
+    edit 10
+        set name "Staff-WAN-dup"
+        set srcintf "lan"
+        set dstintf "virtual-wan-link"
+        set action accept
+        set srcaddr "Staff-Net"
+        set dstaddr "all"
+        set schedule "always"
+        set service "ALL"
+        set utm-status enable
+        set webfilter-profile "strict"
+        set ips-sensor "default"
+        set logtraffic all
+        set nat enable
+    next
+end

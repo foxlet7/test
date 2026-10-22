@@ -30,6 +30,24 @@ Notes:
 - To change the layout, edit the `window.NOC_CONFIG = {...}` block near the top of the file.
 - For a wall screen, log it in as a dedicated **read-only** PRTG user.
 
+## Firewall policy audit (offline)
+
+`dist/fw-audit.htm` is a single file. Double-click it to open it in a browser. It never talks to the network
+(a Content-Security-Policy blocks it), so firewall exports stay on your machine.
+
+1. On the FortiGate run `show firewall policy` and paste the output (or load it from a file).
+2. Optional: hit counts (GUI policy table exported as CSV, or `diagnose firewall iprope list 00100004`) to find unused rules.
+3. Optional: `show firewall address`, `addrgrp`, `service custom`, `service group` for real address overlap and unused-object checks.
+   Reports show object **names only**, never the addresses behind them.
+
+It reports allow-all rules, internet-facing exposure, deny rules bypassed by earlier accepts, shadowed/duplicate rules,
+`ALL_TCP`+`ALL_UDP` lists that are really `ALL`, missing UTM/logging, test groups, wide VPN rules, stale/unused policies and
+unreferenced objects, then generates a CLI **review script** (`move` for bypassed denies, `disable` for dead rules).
+
+Rebuild: `node build-standalone.js --page fw-audit.html -o dist/fw-audit.htm`.
+Command line / tests: `node test/fw-audit.test.js` or `node test/fw-audit.test.js policies.txt [objects.txt [hits.txt]]`.
+Keep your real exports outside the repo or under `local/` (git-ignored).
+
 ## Monthly availability report
 
 `noc-uptime.htm` (build: `node build-standalone.js --page report.html sites/<site>.js local/secrets.js -o local/noc-uptime.htm`)
