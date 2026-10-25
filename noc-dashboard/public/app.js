@@ -118,9 +118,9 @@
     return '';
   }
 
-  function prtgTable(content, columns, signal) {
+  function prtgTable(content, columns, signal, extra) {
     var url = (CFG.prtgBase || '') + '/api/table.json?content=' + content +
-      '&output=json&count=50000&columns=' + columns + authQuery();
+      '&output=json&count=50000&columns=' + columns + (extra || '') + authQuery();
     // Send the same request headers PRTG's own web UI (jQuery) sends.
     var headers = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
     var csrf = document.querySelector('meta[name="csrf-token"]');
@@ -145,13 +145,29 @@
   function n(v, f) { var x = Number(v); return isFinite(x) ? x : f; }
   function tagList(t) { return String(t || '').split(/[\s,]+/).filter(Boolean); }
 
+  var PANEL_TAGS = [];
+  (CFG.panels || []).forEach(function (p) {
+    (p.items || []).forEach(function (it) {
+      if (it.tag && PANEL_TAGS.indexOf(String(it.tag).toLowerCase()) < 0) PANEL_TAGS.push(String(it.tag).toLowerCase());
+    });
+  });
+
   function fetchDirect(signal) {
+    var tagReqs = PANEL_TAGS.map(function (t) {
+      return prtgTable('sensors', 'objid', signal, '&filter_tags=' + encodeURIComponent('@tag(' + t + ')'))
+        .then(function (r) { return [t, (r.sensors || []).map(function (s) { return Number(s.objid); })]; })
+        .catch(function () { return [t, null]; });
+    });
     return Promise.all([
       prtgTable('devices', DEVICE_COLS, signal),
       prtgTable('sensors', SENSOR_COLS, signal),
+      Promise.all(tagReqs),
     ]).then(function (res) {
+      var tagIds = {};
+      res[2].forEach(function (pair) { if (pair[1]) tagIds[pair[0]] = pair[1]; });
       return {
         ok: true,
+        tagIds: tagIds,
         devices: (res[0].devices || []).map(function (d) {
           return {
             id: n(d.objid, 0), name: strip(d.device), group: strip(d.group), host: strip(d.host),
@@ -318,7 +334,40 @@
       : function (v) { return squash(v).indexOf(want) >= 0; };
   }
 
+  // Items: { id }, { device }, { sensor [, device] }, { tag }; add expand: true
+  // to list every sensor of the matched device(s) as its own row.
   function resolveItem(item, m) {
+    var hits = resolveBase(item, m);
+    if (!item.expand) return hits;
+    var out = [];
+    hits.forEach(function (h) {
+      if (h.kind !== 'device') { out.push(h); return; }
+      m.sensors
+        .filter(function (s) { return s.deviceId === h.obj.id; })
+        .sort(function (a, b) { return byName(a, b); })
+        .forEach(function (s) { out.push({ kind: 'sensor', obj: s }); });
+    });
+    return out;
+  }
+
+  function resolveBase(item, m) {
+    if (item.tag) {
+      // PRTG's own tag filter (includes tags inherited from device/group); falls
+      // back to the sensor's and device's own tags.
+      var t = String(item.tag).toLowerCase();
+      var fromPrtg = (state.data && state.data.tagIds && state.data.tagIds[t]) || null;
+      var devTagged = {};
+      m.devices.forEach(function (d) {
+        if (d.tags.some(function (x) { return x.toLowerCase() === t; })) devTagged[d.id] = true;
+      });
+      return m.sensors
+        .filter(function (s) {
+          return (fromPrtg && fromPrtg.indexOf(s.id) >= 0) || devTagged[s.deviceId] ||
+            s.tags.some(function (x) { return x.toLowerCase() === t; });
+        })
+        .sort(function (a, b) { return a.device.localeCompare(b.device) || byName(a, b); })
+        .map(function (s) { return { kind: 'sensor', obj: s }; });
+    }
     if (item.id != null) {
       // PRTG object ID: matches a sensor or a device (IDs are unique across PRTG)
       var id = Number(item.id);
@@ -351,17 +400,24 @@
   function renderPanels(m) {
     var root = $('sections');
     var grid = el('div', 'panels');
+    var shown = {}; // sensor ids represented on screen (for scope: 'panels')
 
     CFG.panels.forEach(function (panel) {
       var rows = [];
+      var seen = {};
       var worst = 6;
       (panel.items || []).forEach(function (item) {
         var hits = resolveItem(item, m);
         if (!hits.length) {
-          rows.push({ missing: true, item: item });
+          if (!item.optional) rows.push({ missing: true, item: item }); // optional: catch-all patterns stay silent
           return;
         }
         hits.forEach(function (h) {
+          var key = h.kind + h.obj.id;
+          if (seen[key]) return;
+          seen[key] = true;
+          if (h.kind === 'sensor') shown[h.obj.id] = true;
+          else m.sensors.forEach(function (x) { if (x.deviceId === h.obj.id) shown[x.id] = true; });
           worst = Math.min(worst, RANK[cls(h.obj.status)]);
           rows.push({ hit: h, item: item, multi: hits.length > 1 });
         });
@@ -411,6 +467,7 @@
 
     root.textContent = '';
     root.appendChild(grid);
+    return shown;
   }
 
   function renderSections(m) {
@@ -524,11 +581,30 @@
     state.knownAlerts = now;
   }
 
+  // scope: 'panels' -> counts and alerts only cover what this dashboard shows
+  function scopeToPanels(m, shown) {
+    var t = { down: 0, warn: 0, unusual: 0, ack: 0, paused: 0, up: 0, unknown: 0, all: 0 };
+    var devs = {};
+    m.sensors.forEach(function (s) {
+      if (!shown[s.id]) return;
+      t[cls(s.status)] += 1;
+      t.all += 1;
+      devs[s.deviceId] = true;
+    });
+    m.totals = t;
+    m.deviceCount = Object.keys(devs).length;
+    m.alerts = m.alerts.filter(function (a) { return shown[a.id]; });
+  }
+
   function render() {
     var m = model(state.data);
+    if (CFG.panels && CFG.panels.length) {
+      var shown = renderPanels(m);
+      if (CFG.scope === 'panels') scopeToPanels(m, shown);
+    } else {
+      renderSections(m);
+    }
     renderSummary(m);
-    if (CFG.panels && CFG.panels.length) renderPanels(m);
-    else renderSections(m);
     renderAlerts(m);
     fitToScreen();
     if (detail.open) updateDetail();
@@ -854,6 +930,29 @@
   }
 
   $('title').textContent = CFG.title;
+
+  // Links between dashboards (CFG.links: [{ label, href }]); ?rotate=60 cycles
+  // through them on a wall screen, keeping the kiosk/rotate parameters.
+  (function () {
+    var links = CFG.links || [];
+    if (!links.length) return;
+    var nav = $('nav');
+    var here = location.pathname.split('/').pop();
+    links.forEach(function (l) {
+      var a = el('a', l.href === here ? 'on' : null, l.label);
+      a.href = l.href + location.search;
+      nav.appendChild(a);
+    });
+    nav.hidden = false;
+    var rotate = parseInt(params.get('rotate'), 10);
+    if (rotate >= 15) {
+      var idx = links.map(function (l) { return l.href; }).indexOf(here);
+      var nextHref = links[(idx + 1) % links.length].href;
+      setInterval(function () {
+        if (!detail.open && nextHref !== here) location.href = nextHref + location.search;
+      }, rotate * 1000);
+    }
+  })();
   if (params.has('kiosk')) autoScroll();
   if (params.has('kiosk')) document.body.classList.add('mouse-idle');
   if (CFG.reloadPageHours > 0) {

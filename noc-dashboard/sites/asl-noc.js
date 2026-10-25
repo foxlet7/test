@@ -9,6 +9,10 @@
 Object.assign(window.NOC_CONFIG, {
   title: 'AlasilaCX NOC',
   subtitle: 'PRTG live status',
+  links: [
+    { label: 'Network', href: '5noc-dashboard.htm' },
+    { label: 'VoIP', href: 'voip-dashboard.htm' },
+  ],
   panels: [
     { title: 'Critical Systems', items: [
       { id: 42,   label: 'DNS/ADS: AD02' },

@@ -58,7 +58,8 @@ h1, h2 { margin: 0; font-weight: 600; }
   flex: 0 0 auto;
 }
 
-.brand { display: flex; align-items: center; gap: .8rem; min-width: 0; flex: 0 1 auto; }
+.brand { display: flex; align-items: center; gap: .8rem; min-width: 0; flex: 0 0 auto; }
+.title-row { display: flex; align-items: center; gap: .6rem; }
 .brand h1 { font-size: 1.45rem; letter-spacing: .02em; white-space: nowrap; }
 .brand .sub { color: var(--muted); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -357,3 +358,13 @@ body.stale .sections, body.stale .alert-list { filter: grayscale(.85); opacity: 
 .graph-box img { display: block; width: 100%; height: auto; }
 .graph-box img:not([src]) { display: none; }
 .graph-msg { color: #444; padding: 2rem; text-align: center; }
+
+/* ---------------------------------------------------------------- dashboard switcher */
+.dash-nav { display: flex; gap: .3rem; }
+.dash-nav[hidden] { display: none; }
+.dash-nav a {
+  font-size: .8rem; font-weight: 600; text-decoration: none; color: var(--muted);
+  padding: .25rem .65rem; border: 1px solid var(--border); border-radius: 999px; white-space: nowrap;
+}
+.dash-nav a.on { color: #0b0f14; background: var(--paused); border-color: var(--paused); }
+.dash-nav a:hover { color: var(--text); }
