@@ -140,3 +140,6 @@ body.theme-alasilacx {
 .theme-alasilacx .kpi { border-top: 3px solid #8b86b8; }
 .theme-alasilacx .progress { background: #ecebf6; color: #554d93; }
 body.embedded .head { position: sticky; top: 0; z-index: 2; }
+
+.debug { margin: 1rem 1.5rem 2rem; padding: 1rem; background: #1b1f27; color: #d6e2ff; border-radius: 8px;
+  font: 12px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }

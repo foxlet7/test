@@ -61,6 +61,8 @@
     return '';
   }
 
+  var debugInfo = { path: '', status: 0, raw: '' };
+
   function api(path) {
     var headers = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
     return fetch((CFG.prtgBase || '') + path + authQuery(), {
@@ -68,6 +70,11 @@
     }).then(function (r) {
       if (r.status === 401 || r.status === 403) throw new Error('PRTG refused the request (HTTP ' + r.status + ') - check the API key in the file');
       return r.text().then(function (t) {
+        if (/historicdata/.test(path) && !debugInfo.raw) {
+          debugInfo.path = path;
+          debugInfo.status = r.status;
+          debugInfo.raw = t;
+        }
         var j;
         try { j = JSON.parse(t); } catch (e) { j = null; }
         if (!r.ok || !j) {
@@ -218,9 +225,11 @@
     });
     if (!rows.length) return { error: 'no history for this period' };
 
-    var downKey = Object.keys(rows[0]).filter(function (k) { return /^downtime$/i.test(k); })[0];
+    var keys = {};
+    rows.forEach(function (r) { Object.keys(r).forEach(function (k) { keys[k] = true; }); });
+    var downKey = Object.keys(keys).filter(function (k) { return /^downtime(\s*\(%\))?$/i.test(k.trim()); })[0];
     if (!downKey) {
-      return { error: 'PRTG returned no "Downtime" column (columns: ' + Object.keys(rows[0]).slice(0, 8).join(', ') + ')' };
+      return { error: 'PRTG returned no "Downtime" column (columns: ' + Object.keys(keys).slice(0, 10).join(', ') + ')' };
     }
 
     var monitored = 0, down = 0;
@@ -346,6 +355,23 @@
     kpi(worst ? fmtPct(worst.result.uptime) : 'n/a', 'Lowest: ' + (worst ? (worst.item.label || worst.sensor.name) : '-'), worst ? grade(worst.result.uptime, res.sla) : '');
     if (failed) kpi(String(failed), 'Items without data', 'warn');
     k.hidden = false;
+
+    // why are rows empty? group the per-row errors so the cause is visible at once
+    var reasons = {};
+    all.forEach(function (r) {
+      var msg = r.missing || (r.result && r.result.error);
+      if (msg && !(r.result && r.result.uptime != null)) reasons[msg] = (reasons[msg] || 0) + 1;
+    });
+    var rk = Object.keys(reasons).sort(function (a, b) { return reasons[b] - reasons[a]; });
+    showError(rk.length ? 'Items without data:\n' + rk.map(function (m) { return '• ' + reasons[m] + ' × ' + m; }).join('\n') : '');
+
+    if (params.has('debug')) {
+      var d = $('debug') || document.body.appendChild(el('pre', 'debug'));
+      d.id = 'debug';
+      d.textContent = 'DEBUG - first historic data request\n' +
+        'GET ' + debugInfo.path + ' (+ credentials, hidden)\nHTTP ' + debugInfo.status + '\n\n' +
+        (debugInfo.raw || '(no history request was made)').slice(0, 4000);
+    }
 
     var root = $('tables');
     root.textContent = '';
