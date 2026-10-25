@@ -211,7 +211,7 @@
   }
 
   function fetchState() {
-    if (DEMO) return Promise.resolve(window.NOC_DEMO());
+    if (DEMO && window.NOC_DEMO) return Promise.resolve(window.NOC_DEMO());
 
     var ctrl = new AbortController();
     var t = setTimeout(function () { ctrl.abort(); }, 25000);
@@ -1260,6 +1260,7 @@
   }
 
   $('title').textContent = CFG.title;
+  if (window.NOC_BUILD) $('build-stamp').textContent = 'build ' + window.NOC_BUILD;
 
   // Branding: CFG.theme adds a body class; CFG.logo is an image next to this page
   // in webroot (falls back to the CFG.wordmark text if the file is missing).
@@ -1361,7 +1362,7 @@
       frame.srcdoc = new TextDecoder('utf-8').decode(bytes)
         .replace('<head>', function () { return '<head><script>window.NOC_EMBED = ' + opts + ';<\/script>'; });
     } else {
-      frame.src = 'noc-uptime.htm' + (view ? '?view=' + view : ''); // non-bundled install
+      frame.src = (CFG.reportPage || 'noc-uptime.htm') + (view ? '?view=' + view : ''); // report page next to this one
     }
     $('reports').hidden = false;
     reportsOpen = true;
@@ -1385,10 +1386,12 @@
     document.body.classList.toggle('ins-collapsed', !ui.bottom);
     $('side-toggle').setAttribute('aria-expanded', String(ui.side));
     $('ins-toggle').setAttribute('aria-expanded', String(ui.bottom));
-    $('ins-toggle').textContent = ui.bottom ? '▾' : '▴';
+    $('ins-toggle').textContent = '▾'; // rotated by CSS when collapsed
     $('ins-toggle').title = ui.bottom ? 'Collapse insights (I)' : 'Expand insights (I)';
     store.set('noc-ui', ui);
-    fitToScreen();
+    // re-fit once the slide animation has finished (measuring mid-slide is wrong)
+    clearTimeout(applyUi.t);
+    applyUi.t = setTimeout(fitToScreen, 500);
   }
   function togglePanel(which) { ui[which] = !ui[which]; applyUi(); }
   $('side-toggle').addEventListener('click', function () { togglePanel('side'); });

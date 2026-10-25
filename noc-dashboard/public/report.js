@@ -456,7 +456,8 @@
     foot.hidden = false;
     foot.textContent = 'Source: PRTG historic data (' + (res.bucket === 3600 ? 'hourly' : 'daily') + ' averages), ' + res.start.toLocaleString() + ' – ' + res.end.toLocaleString() +
       '. Availability = 100% − PRTG "Downtime", over the time each sensor was actually monitored (paused time excluded). ' +
-      'Devices are measured by their Ping sensor. Generated ' + new Date().toLocaleString() + (DEMO ? ' · DEMO DATA' : '') + '.';
+      'Devices are measured by their Ping sensor. Generated ' + new Date().toLocaleString() + (DEMO ? ' · DEMO DATA' : '') + '.' +
+      (window.NOC_BUILD ? ' Report build ' + window.NOC_BUILD + '.' : '');
 
     document.title = (CFG.brandName || CFG.title) + ' – Availability ' + res.label + res.scopeLabel;
     $('csv').disabled = false;
@@ -563,6 +564,7 @@
   $('range').value = params.get('month') ? 'month' : (params.get('range') || EMBED.range || 'last-month');
   $('sla').value = params.get('sla') || CFG.slaTarget;
   $('title').textContent = (CFG.brandName || CFG.title.replace(/\s*NOC$/i, '')) + ' – Availability Report';
+  if (window.NOC_BUILD) $('period').textContent += ' · build ' + window.NOC_BUILD;
   $('range').addEventListener('change', syncRangeInputs);
   syncRangeInputs();
 

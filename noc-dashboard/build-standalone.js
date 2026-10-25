@@ -50,15 +50,22 @@ for (let i = 0; i < argv.length; i++) {
   else overlays.push(argv[i]);
 }
 
+// Build stamp shown on every page, to tell at a glance which copy PRTG is serving.
+const d = new Date();
+const BUILD = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') +
+  ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+
 function build(pageFile) {
   // Inline every local stylesheet and script the page references.
   let html = pub(pageFile)
     .replace(/<link rel="stylesheet" href="([\w.-]+)">/g, (m, f) => '<style>\n' + pub(f) + '\n</style>')
     .replace(/<script src="([\w.-]+)"><\/script>/g, (m, f) =>
-      '<script>\n' + js(f === 'config.js' ? config : pub(f)) + '\n</script>');
+      // site builds (with overlays) leave out the ?demo=1 sample data to stay small for PRTG
+      f === 'demo-data.js' && overlays.length ? '' : '<script>\n' + js(f === 'config.js' ? config : pub(f)) + '\n</script>');
   html = html.replace('<!doctype html>', '<!doctype html>\n<!-- PRTG NOC Dashboard - single-file build. Edit NOC_CONFIG below to change layout. -->');
   if (/<(script src|link rel="stylesheet" href)="[\w.-]+"/.test(html)) throw new Error('bundle incomplete');
 
+  html = html.replace(/(window\.NOC_CONFIG = \{[\s\S]*?\n\};\n)/, (m) => m + "window.NOC_BUILD = '" + BUILD + "';\n");
   if (overlays.length) {
     const extra = overlays.map((f) => '// ---- ' + path.basename(f) + '\n' + fs.readFileSync(f, 'utf8')).join('\n');
     html = html.replace(/(window\.NOC_CONFIG = \{[\s\S]*?\n\};\n)/, (m) => m + '\n' + js(extra) + '\n');
