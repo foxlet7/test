@@ -7,13 +7,12 @@
  *         capacity: 200                 -> circuit size in Mbit/s, enables utilisation % in Insights
  * Rows that don't resolve show as "not found" (wrong ID or the PRTG user can't see it).
  */
-Object.assign(window.NOC_CONFIG, {
+// Registers this layout as a view; build several site files into one page for a NOC/VoIP toggle.
+(window.NOC_PRESETS = window.NOC_PRESETS || []).push({
+  key: 'noc',
+  label: 'NOC',
   title: 'AlasilaCX NOC',
   subtitle: 'PRTG live status',
-  links: [
-    { label: 'Network', href: '5noc-dashboard.htm' },
-    { label: 'VoIP', href: 'voip-dashboard.htm' },
-  ],
   panels: [
     { title: 'Critical Systems', items: [
       { id: 42,   label: 'DNS/ADS: AD02' },

@@ -9,14 +9,13 @@
  * expand: true = one row per sensor of that device.
  * optional: true = no "not found" row when a catch-all pattern matches nothing.
  */
-Object.assign(window.NOC_CONFIG, {
+// Registers this layout as a view; build several site files into one page for a NOC/VoIP toggle.
+(window.NOC_PRESETS = window.NOC_PRESETS || []).push({
+  key: 'voip',
+  label: 'VoIP',
   title: 'AlasilaCX VoIP',
   subtitle: 'SIP, SBC, FreeSWITCH & cloud voice',
   scope: 'panels',   // counts + alerts only for VoIP items, not the whole PRTG
-  links: [
-    { label: 'Network', href: '5noc-dashboard.htm' },
-    { label: 'VoIP', href: 'voip-dashboard.htm' },
-  ],
   panels: [
     { title: 'SIP Circuits', items: [   // on the External Switch
       { id: 2162, expand: true },

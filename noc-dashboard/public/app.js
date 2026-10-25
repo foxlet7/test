@@ -10,7 +10,7 @@
     fitToScreen: 'auto', // grow text to fill the screen: true / false / 'auto' (= on for panels layout)
     fitMaxFontPx: 48,    // upper limit for fit-to-screen text size
     panelColumns: 0,     // panels per row; 0 = all panels in one row
-    detailAutoCloseSeconds: 120, // graph panel closes itself after this long without interaction (0 = never)  // full page reload so wall screens pick up a new file version (0 = never)
+    detailAutoCloseSeconds: 120, // graph panel closes itself after this long without interaction (0 = never)
     sections: [],
     panels: [],   // map-style layout: [{ title, items: [{ device, sensor, label }] }] - overrides sections
     unmatched: 'group',
@@ -34,6 +34,29 @@
 
   var params = new URLSearchParams(location.search);
   var DEMO = params.has('demo');
+
+  // Small localStorage wrapper: per-browser UI state; never required to work.
+  var store = {
+    get: function (k, d) {
+      try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; }
+    },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ } },
+  };
+
+  // ---- views (presets): one page, several dashboards - NOC / VoIP / ... ----
+  // Site files register them with (window.NOC_PRESETS ||= []).push({ key, label, ...config }).
+  var PRESETS = window.NOC_PRESETS || [];
+  var BASE = JSON.parse(JSON.stringify(CFG));
+  var view = null;
+  function applyPreset(key) {
+    var p = PRESETS.filter(function (x) { return x.key === key; })[0] || PRESETS[0];
+    if (!p) return;
+    Object.keys(CFG).forEach(function (k) { if (!(k in BASE)) delete CFG[k]; });
+    Object.keys(BASE).forEach(function (k) { CFG[k] = BASE[k]; });
+    Object.keys(p).forEach(function (k) { CFG[k] = p[k]; });
+    view = p.key;
+  }
+  applyPreset(params.get('view') || store.get('noc-view', null));
   if (params.has('kiosk')) document.body.classList.add('kiosk');
 
   // PRTG status_raw -> [css class, label]
@@ -146,7 +169,7 @@
   function tagList(t) { return String(t || '').split(/[\s,]+/).filter(Boolean); }
 
   var PANEL_TAGS = [];
-  (CFG.panels || []).forEach(function (p) {
+  [].concat(CFG.panels || [], PRESETS.reduce(function (a, p) { return a.concat(p.panels || []); }, [])).forEach(function (p) {
     (p.items || []).forEach(function (it) {
       if (it.tag && PANEL_TAGS.indexOf(String(it.tag).toLowerCase()) < 0) PANEL_TAGS.push(String(it.tag).toLowerCase());
     });
@@ -442,8 +465,9 @@
           var miss = el('li', 'row missing');
           miss.appendChild(el('span', 'dot'));
           var t = el('div', 'lbl');
-          t.appendChild(el('span', 'name', r.item.label || r.item.sensor || r.item.device || ('ID ' + r.item.id)));
-          t.appendChild(el('span', 'dev', 'not found in PRTG - check the name / user access'));
+          t.appendChild(el('span', 'name', r.item.label || r.item.sensor || r.item.device ||
+            (r.item.tag ? 'Tag "' + r.item.tag + '"' : 'ID ' + r.item.id)));
+          t.appendChild(el('span', 'dev', r.item.tag ? 'no sensors carry this tag (or the PRTG user can\'t see them)' : 'not found in PRTG - check the name / user access'));
           miss.appendChild(t);
           ul.appendChild(miss);
           return;
@@ -547,39 +571,80 @@
     return tile;
   }
 
+  // Dismissed alerts: { sensorId: status at dismissal }. An alert comes back
+  // as soon as that sensor's status differs (worse, better, or recovered).
+  var dismissed = store.get('noc-dismissed', {});
+  var showDismissed = false;
+
+  function pruneDismissed() {
+    if (!state.data) return;
+    var byId = {};
+    state.data.sensors.forEach(function (s) { byId[s.id] = s; });
+    var changed = false;
+    Object.keys(dismissed).forEach(function (id) {
+      var s = byId[id];
+      if (!s || s.status !== dismissed[id]) { delete dismissed[id]; changed = true; }
+    });
+    if (changed) store.set('noc-dismissed', dismissed);
+  }
+
+  function alertItem(a, prev, isDismissed) {
+    var c = cls(a.status);
+    var li = el('li', 'alert s-' + c + (isDismissed ? ' dismissed' : '') + (!isDismissed && prev && !prev.has(a.id) ? ' new' : ''));
+    clickable(li, 'sensor', a.id);
+    var row = el('div', 'a-top');
+    row.appendChild(el('span', 'badge', label(a.status)));
+    row.appendChild(el('span', 'a-dev', a.device));
+    if (a.downSince) row.appendChild(el('span', 'a-since', a.downSince));
+    var btn = el('button', 'a-dismiss', isDismissed ? '↺' : '✓');
+    btn.type = 'button';
+    btn.title = isDismissed ? 'Restore this alert' : 'Dismiss - it comes back if the status changes';
+    btn.setAttribute(isDismissed ? 'data-restore' : 'data-dismiss', String(a.id));
+    row.appendChild(btn);
+    li.appendChild(row);
+    li.appendChild(el('div', 'a-sensor', a.name + (a.lastValue ? '  ·  ' + a.lastValue : '')));
+    if (a.message && a.message !== 'OK') li.appendChild(el('div', 'a-msg', a.message));
+    if (a.group) li.appendChild(el('div', 'a-group', a.group));
+    return li;
+  }
+
   function renderAlerts(m) {
     var list = $('alert-list');
     var frag = document.createDocumentFragment();
     var now = new Set(m.alerts.map(function (a) { return a.id; }));
     var prev = state.knownAlerts;
 
+    pruneDismissed();
+    var hidden = m.alerts.filter(function (a) { return a.id in dismissed; });
+    var allAlerts = m.alerts;
+    m = Object.assign({}, m, { alerts: m.alerts.filter(function (a) { return !(a.id in dismissed); }) });
+
+    var hot = m.alerts.some(function (a) { return cls(a.status) === 'down'; });
     $('alert-count').textContent = String(m.alerts.length);
-    $('alert-count').className = 'count' + (m.alerts.some(function (a) { return cls(a.status) === 'down'; }) ? ' hot' : '');
+    $('alert-count').className = 'count' + (hot ? ' hot' : '');
+    $('rail-count').textContent = String(m.alerts.length);
+    $('rail-count').className = 'count' + (hot ? ' hot' : '');
 
     if (!m.alerts.length) {
       var ok = el('li', 'all-clear');
       ok.appendChild(el('span', 'big', '✓'));
-      ok.appendChild(el('span', null, 'All monitored sensors OK'));
+      ok.appendChild(el('span', null, allAlerts.length ? 'No open alerts (' + hidden.length + ' dismissed)' : 'All monitored sensors OK'));
       frag.appendChild(ok);
     }
 
-    m.alerts.slice(0, CFG.maxAlerts).forEach(function (a) {
-      var c = cls(a.status);
-      var li = el('li', 'alert s-' + c + (prev && !prev.has(a.id) ? ' new' : ''));
-      clickable(li, 'sensor', a.id);
-      var row = el('div', 'a-top');
-      row.appendChild(el('span', 'badge', label(a.status)));
-      row.appendChild(el('span', 'a-dev', a.device));
-      if (a.downSince) row.appendChild(el('span', 'a-since', a.downSince));
-      li.appendChild(row);
-      li.appendChild(el('div', 'a-sensor', a.name + (a.lastValue ? '  ·  ' + a.lastValue : '')));
-      if (a.message && a.message !== 'OK') li.appendChild(el('div', 'a-msg', a.message));
-      if (a.group) li.appendChild(el('div', 'a-group', a.group));
-      frag.appendChild(li);
-    });
+    m.alerts.slice(0, CFG.maxAlerts).forEach(function (a) { frag.appendChild(alertItem(a, prev, false)); });
 
     if (m.alerts.length > CFG.maxAlerts) {
       frag.appendChild(el('li', 'more', '+' + (m.alerts.length - CFG.maxAlerts) + ' more alerts'));
+    }
+    if (hidden.length) {
+      var t = el('li', 'more');
+      var tb = el('button', 'a-toggle', (showDismissed ? 'Hide ' : 'Show ') + hidden.length + ' dismissed');
+      tb.type = 'button';
+      tb.setAttribute('data-toggle-dismissed', '1');
+      t.appendChild(tb);
+      frag.appendChild(t);
+      if (showDismissed) hidden.forEach(function (a) { frag.appendChild(alertItem(a, prev, true)); });
     }
 
     list.textContent = '';
@@ -687,7 +752,7 @@
   // trends survive the periodic page reload.
   var panelInfo = { panel: {}, label: {}, cap: {} };
   var INSIGHTS = params.get('insights') !== '0' && CFG.insights !== false;
-  var HIST_KEY = 'noc-hist:' + location.pathname;
+  var HIST_KEY = 'noc-hist';
   var HIST_MAX_MS = 6 * 3600 * 1000;
   var hist = (function () {
     try { return JSON.parse(localStorage.getItem(HIST_KEY)) || {}; } catch (e) { return {}; }
@@ -820,9 +885,14 @@
       .map(function (s) { return { s: s, mbps: parseMbps(s.lastValue) }; })
       .filter(function (l) { return l.mbps != null || (/traffic/i.test(l.s.name) && cls(l.s.status) === 'down'); })
       .map(function (l) { if (l.mbps == null) l.mbps = 0; return l; });
+    // sample every bandwidth sensor, so each view has history when switched to
+    sample(m.sensors
+      .map(function (s) { return { s: s, mbps: parseMbps(s.lastValue) }; })
+      .filter(function (l) { return l.mbps != null; }));
     if (!links.length) { box.hidden = true; return; }
-    sample(links);
     box.hidden = false;
+    var mini = $('ins-mini');
+    box = $('ins-body');
     box.textContent = '';
 
     var total = links.reduce(function (a, l) { return a + l.mbps; }, 0);
@@ -882,6 +952,13 @@
     if (!findings.length) {
       ul.appendChild(el('li', 'ok', '✓ All ' + links.length + ' links look normal — no drops, surges or saturation detected'));
     }
+    // one-line summary shown when the strip is collapsed
+    mini.textContent = '';
+    mini.className = 'ins-mini sev' + (findings.length ? findings[0].sev : 'ok');
+    mini.appendChild(el('b', null, fmtMbps(total)));
+    mini.appendChild(el('span', null, up + '/' + links.length + ' links up'));
+    mini.appendChild(el('span', null, findings.length ? findings.length + ' finding' + (findings.length > 1 ? 's' : '') + ' — ' + findings[0].text : 'all links normal'));
+
     findings.slice(0, CFG.insightsMax || 6).forEach(function (x) {
       var li = el('li', 'sev' + x.sev + ' clickable');
       clickable(li, 'sensor', x.id);
@@ -909,6 +986,11 @@
   }
 
   function onActivate(e) {
+    var btn = e.target.closest ? e.target.closest('button') : null;
+    if (btn) {
+      if (e.type === 'click') onButton(btn);
+      return;
+    }
     if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
     var n = e.target.closest ? e.target.closest('.clickable') : null;
     if (!n) return;
@@ -920,6 +1002,20 @@
     $('alert-list').addEventListener(t, onActivate);
     $('insights').addEventListener(t, onActivate);
   });
+
+  function onButton(btn) {
+    var id;
+    if ((id = btn.getAttribute('data-dismiss'))) {
+      var s = findSensor(Number(id));
+      if (s) { dismissed[id] = s.status; store.set('noc-dismissed', dismissed); }
+    } else if ((id = btn.getAttribute('data-restore'))) {
+      delete dismissed[id];
+      store.set('noc-dismissed', dismissed);
+    } else if (btn.hasAttribute('data-toggle-dismissed')) {
+      showDismissed = !showDismissed;
+    } else return;
+    if (state.data) render();
+  }
 
   function findSensor(id) {
     return state.data ? state.data.sensors.filter(function (s) { return s.id === id; })[0] : null;
@@ -1102,6 +1198,17 @@
     function fits() {
       if (box.scrollHeight > box.clientHeight + 1) return false;
       if (root.scrollWidth > window.innerWidth || top.scrollWidth > top.clientWidth + 1) return false;
+      // header parts must not overflow into each other
+      var parts = top.children;
+      for (var j = 0; j < parts.length; j++) {
+        if (parts[j].scrollWidth > parts[j].clientWidth + 1) return false;
+        var pr = parts[j].getBoundingClientRect();
+        var kids = parts[j].children;
+        for (var q = 0; q < kids.length; q++) {
+          var kr = kids[q].getBoundingClientRect();
+          if (kr.left < pr.left - 1 || kr.right > pr.right + 1) return false; // e.g. centred pills spilling both ways
+        }
+      }
       var must = box.querySelectorAll('.row .name, .row .v, .section-head h2');
       for (var i = 0; i < must.length; i++) if (clipped(must[i])) return false;
       return true;
@@ -1154,12 +1261,53 @@
 
   $('title').textContent = CFG.title;
 
-  // Links between dashboards (CFG.links: [{ label, href }]); ?rotate=60 cycles
-  // through them on a wall screen, keeping the kiosk/rotate parameters.
+  // View switcher: presets in this page (instant), else links to other pages.
+  // ?view=voip opens a view; ?rotate=60 cycles views on a wall screen.
+  function markNav() {
+    Array.prototype.forEach.call($('nav').children, function (b) {
+      b.classList.toggle('on', b.getAttribute('data-view') === view);
+    });
+  }
+  function switchView(key) {
+    if (!key || key === view) return;
+    applyPreset(key);
+    store.set('noc-view', view);
+    if (detail.open) closeDetail();
+    state.knownAlerts = null;
+    $('title').textContent = CFG.title;
+    markNav();
+    try {
+      var q = new URLSearchParams(location.search);
+      q.set('view', view);
+      history.replaceState(null, '', location.pathname + '?' + q.toString());
+    } catch (e) { /* file:// etc. */ }
+    if (state.data) render();
+    tick();
+  }
   (function () {
+    var nav = $('nav');
+    var rotate = parseInt(params.get('rotate'), 10);
+    if (PRESETS.length > 1) {
+      PRESETS.forEach(function (p) {
+        var b = el('button', null, p.label || p.key);
+        b.type = 'button';
+        b.setAttribute('data-view', p.key);
+        b.addEventListener('click', function () { switchView(p.key); });
+        nav.appendChild(b);
+      });
+      markNav();
+      nav.hidden = false;
+      if (rotate >= 15) {
+        setInterval(function () {
+          if (detail.open) return;
+          var i = PRESETS.map(function (p) { return p.key; }).indexOf(view);
+          switchView(PRESETS[(i + 1) % PRESETS.length].key);
+        }, rotate * 1000);
+      }
+      return;
+    }
     var links = CFG.links || [];
     if (!links.length) return;
-    var nav = $('nav');
     var here = location.pathname.split('/').pop();
     links.forEach(function (l) {
       var a = el('a', l.href === here ? 'on' : null, l.label);
@@ -1167,7 +1315,6 @@
       nav.appendChild(a);
     });
     nav.hidden = false;
-    var rotate = parseInt(params.get('rotate'), 10);
     if (rotate >= 15) {
       var idx = links.map(function (l) { return l.href; }).indexOf(here);
       var nextHref = links[(idx + 1) % links.length].href;
@@ -1176,6 +1323,36 @@
       }, rotate * 1000);
     }
   })();
+
+  // Collapsible side (alerts) and bottom (insights) panels, remembered per browser.
+  // Keyboard: A = alerts panel, I = insights, V = next view.
+  var ui = store.get('noc-ui', { side: true, bottom: true });
+  function applyUi() {
+    document.body.classList.toggle('side-collapsed', !ui.side);
+    document.body.classList.toggle('ins-collapsed', !ui.bottom);
+    $('side-toggle').setAttribute('aria-expanded', String(ui.side));
+    $('ins-toggle').setAttribute('aria-expanded', String(ui.bottom));
+    $('ins-toggle').textContent = ui.bottom ? '▾' : '▴';
+    $('ins-toggle').title = ui.bottom ? 'Collapse insights (I)' : 'Expand insights (I)';
+    store.set('noc-ui', ui);
+    fitToScreen();
+  }
+  function togglePanel(which) { ui[which] = !ui[which]; applyUi(); }
+  $('side-toggle').addEventListener('click', function () { togglePanel('side'); });
+  $('side-rail').addEventListener('click', function () { togglePanel('side'); });
+  $('ins-toggle').addEventListener('click', function () { togglePanel('bottom'); });
+  document.addEventListener('keydown', function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey || detail.open) return;
+    var k = e.key.toLowerCase();
+    if (k === 'a') togglePanel('side');
+    else if (k === 'i') togglePanel('bottom');
+    else if (k === 'v' && PRESETS.length > 1) {
+      var i = PRESETS.map(function (p) { return p.key; }).indexOf(view);
+      switchView(PRESETS[(i + 1) % PRESETS.length].key);
+    }
+  });
+  applyUi();
+
   if (params.has('kiosk')) autoScroll();
   if (params.has('kiosk')) document.body.classList.add('mouse-idle');
   if (CFG.reloadPageHours > 0) {

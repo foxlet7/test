@@ -30,6 +30,19 @@ Notes:
 - To change the layout, edit the `window.NOC_CONFIG = {...}` block near the top of the file.
 - For a wall screen, log it in as a dedicated **read-only** PRTG user.
 
+## Unified page with views (NOC / VoIP)
+
+Site files register views with `(window.NOC_PRESETS ||= []).push({ key, label, title, panels, scope })`.
+Build several into one page for a toggle in the header:
+
+    node build-standalone.js sites/asl-noc.js sites/asl-voip.js local/secrets.js -o local/noc.htm
+
+- `?view=voip` opens a view; `?rotate=60` cycles views every 60 s (paused while a graph is open).
+- Side (alerts) and bottom (insights) panels collapse with their buttons or the **A** / **I** keys; **V** switches view.
+  The choice is remembered per browser.
+- Alerts can be dismissed with ✓. A dismissed alert returns automatically when that sensor's status changes.
+  Dismissals are stored per browser and nothing is written to PRTG.
+
 ## Monthly availability report
 
 `noc-uptime.htm` (build: `node build-standalone.js --page report.html sites/<site>.js local/secrets.js -o local/noc-uptime.htm`)

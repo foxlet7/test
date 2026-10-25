@@ -31,15 +31,24 @@
     <section class="sections" id="sections" aria-label="Devices"></section>
 
     <aside class="alerts">
+      <button type="button" class="side-rail" id="side-rail" title="Show alerts (A)">
+        <span class="count" id="rail-count">0</span>
+        <span class="rail-label">Alerts</span>
+      </button>
       <div class="alerts-head">
         <h2>Active alerts</h2>
         <span class="count" id="alert-count">0</span>
+        <button type="button" class="panel-toggle" id="side-toggle" title="Collapse alerts (A)">&rsaquo;</button>
       </div>
       <ol class="alert-list" id="alert-list"></ol>
     </aside>
   </main>
 
-  <section class="insights" id="insights" aria-label="Link insights" hidden></section>
+  <section class="insights" id="insights" aria-label="Link insights" hidden>
+    <button type="button" class="panel-toggle ins-toggle" id="ins-toggle" title="Collapse insights (I)">&#9662;</button>
+    <div class="ins-mini" id="ins-mini"></div>
+    <div class="ins-body" id="ins-body"></div>
+  </section>
 
   <div class="detail" id="detail" hidden>
     <div class="detail-card" id="detail-card" role="dialog" aria-modal="true" aria-labelledby="detail-head">

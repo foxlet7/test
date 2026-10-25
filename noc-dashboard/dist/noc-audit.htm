@@ -215,6 +215,18 @@ window.NOC_CONFIG = {
     licenceLimit: 100, longDownDays: 7,
   }, window.NOC_CONFIG || {});
 
+  // Site files register views (NOC, VoIP, ...); cover the items of all of them.
+  var PRESETS = window.NOC_PRESETS || [];
+  if (PRESETS.length && !(CFG.panels || []).length) {
+    CFG.panels = PRESETS.reduce(function (a, p) {
+      return a.concat((p.panels || []).map(function (x) {
+        return Object.assign({}, x, { title: PRESETS.length > 1 ? (p.label || p.key) + ' · ' + x.title : x.title });
+      }));
+    }, []);
+    if (!window.NOC_CONFIG || !window.NOC_CONFIG.title || window.NOC_CONFIG.title === 'NOC Dashboard') {
+      CFG.title = (PRESETS[0].title || CFG.title).replace(/\s+(NOC|VoIP)$/i, '');
+    }
+  }
   var params = new URLSearchParams(location.search);
   var last = null;
 

@@ -19,6 +19,18 @@
     historyRetryWaitSeconds: 20,
   }, window.NOC_CONFIG || {});
 
+  // Site files register views (NOC, VoIP, ...); cover the items of all of them.
+  var PRESETS = window.NOC_PRESETS || [];
+  if (PRESETS.length && !(CFG.panels || []).length) {
+    CFG.panels = PRESETS.reduce(function (a, p) {
+      return a.concat((p.panels || []).map(function (x) {
+        return Object.assign({}, x, { title: PRESETS.length > 1 ? (p.label || p.key) + ' · ' + x.title : x.title });
+      }));
+    }, []);
+    if (!window.NOC_CONFIG || !window.NOC_CONFIG.title || window.NOC_CONFIG.title === 'NOC Dashboard') {
+      CFG.title = (PRESETS[0].title || CFG.title).replace(/\s+(NOC|VoIP)$/i, '');
+    }
+  }
   var params = new URLSearchParams(location.search);
   var DEMO = params.has('demo') && !!window.NOC_REPORT_DEMO;
   var DAY = 86400;
@@ -76,11 +88,25 @@
 
   function loadInventory() {
     if (DEMO) return Promise.resolve(window.NOC_REPORT_DEMO.inventory());
+    var tags = [];
+    (CFG.panels || []).forEach(function (p) {
+      (p.items || []).forEach(function (it) {
+        if (it.tag && tags.indexOf(String(it.tag).toLowerCase()) < 0) tags.push(String(it.tag).toLowerCase());
+      });
+    });
     return Promise.all([
       api('/api/table.json?content=devices&output=json&count=50000&columns=objid,device,host'),
       api('/api/table.json?content=sensors&output=json&count=50000&columns=objid,parentid,device,sensor'),
+      Promise.all(tags.map(function (t) {
+        return api('/api/table.json?content=sensors&output=json&count=50000&columns=objid&filter_tags=' + encodeURIComponent('@tag(' + t + ')'))
+          .then(function (r) { return [t, (r.sensors || []).map(function (x) { return Number(x.objid); })]; })
+          .catch(function () { return [t, []]; });
+      })),
     ]).then(function (r) {
+      var tagIds = {};
+      r[2].forEach(function (pair) { tagIds[pair[0]] = pair[1]; });
       return {
+        tagIds: tagIds,
         devices: (r[0].devices || []).map(function (d) {
           return { id: Number(d.objid), name: strip(d.device), host: strip(d.host) };
         }),
@@ -111,7 +137,25 @@
     return list.filter(function (s) { return /ping/i.test(s.name); })[0] || list[0] || null;
   }
 
+  // expand: true -> every sensor of a matched device gets its own row
   function resolve(item, inv) {
+    var hits = resolveBase(item, inv);
+    if (!item.expand) return hits;
+    var out = [];
+    hits.forEach(function (h) {
+      if (!h.isDevice) { out.push(h); return; }
+      inv.sensors.filter(function (x) { return x.device === h.device && x.deviceId === (h.sensor && h.sensor.deviceId); })
+        .forEach(function (x) { out.push({ item: item, device: x.device, sensor: x }); });
+    });
+    return out;
+  }
+
+  function resolveBase(item, inv) {
+    if (item.tag) {
+      var ids = (inv.tagIds || {})[String(item.tag).toLowerCase()] || [];
+      return inv.sensors.filter(function (x) { return ids.indexOf(x.id) >= 0; })
+        .map(function (x) { return { item: item, device: x.device, sensor: x }; });
+    }
     var out = [];
     function addDevice(d) {
       out.push({ item: item, device: d.name, sensor: deviceSensor(d, inv), isDevice: true });
@@ -240,7 +284,7 @@
         var rows = [];
         (p.items || []).forEach(function (item) {
           var hits = resolve(item, inv);
-          if (!hits.length) rows.push({ item: item, missing: 'not found in PRTG' });
+          if (!hits.length && !item.optional) rows.push({ item: item, missing: 'not found in PRTG' });
           hits.forEach(function (h) {
             var row = { item: item, device: h.device, sensor: h.sensor, isDevice: h.isDevice, multi: hits.length > 1 };
             if (!h.sensor) row.missing = 'device has no sensors';
@@ -310,7 +354,7 @@
       p.rows.forEach(function (r) {
         var tr = el('tr');
         var name = el('td');
-        name.appendChild(document.createTextNode(r.item.label && !r.multi ? r.item.label : (r.sensor ? r.sensor.name : (r.item.label || r.item.sensor || r.item.device || 'ID ' + r.item.id))));
+        name.appendChild(document.createTextNode(r.item.label && !r.multi ? r.item.label : (r.sensor ? r.sensor.name : (r.item.label || r.item.sensor || r.item.device || (r.item.tag ? 'Tag "' + r.item.tag + '"' : 'ID ' + r.item.id)))));
         if (r.sensor) name.appendChild(el('span', 'via', r.device + (r.isDevice ? ' · via ' + r.sensor.name : '') + ' · #' + r.sensor.id));
         tr.appendChild(name);
 
