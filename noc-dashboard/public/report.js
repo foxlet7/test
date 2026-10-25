@@ -225,19 +225,55 @@
     });
     if (!rows.length) return { error: 'no history for this period' };
 
+    // PRTG returns history in one of two shapes:
+    //  a) one key per channel:   { "Downtime": "0 %", "Downtime(RAW)": 0, coverage, ... }
+    //  b) a list per row:        { value: [{ channel: "Downtime", channelid: -4, text: "0 %" }, ...],
+    //                              value_raw: [{ channel: "Downtime", value: 0 }, ...], coverage, ... }
     var keys = {};
     rows.forEach(function (r) { Object.keys(r).forEach(function (k) { keys[k] = true; }); });
     var downKey = Object.keys(keys).filter(function (k) { return /^downtime(\s*\(%\))?$/i.test(k.trim()); })[0];
-    if (!downKey) {
-      return { error: 'PRTG returned no "Downtime" column (columns: ' + Object.keys(keys).slice(0, 10).join(', ') + ')' };
+
+    function isDown(x) {
+      return x && (/^downtime\b/i.test(String(x.channel || x.name || '').trim()) || Number(x.channelid) === -4);
+    }
+    function downtimeOf(r) {
+      if (downKey) {
+        var v = parsePct(r[downKey]);
+        return v != null ? v : parsePct(r[downKey + '(RAW)']);
+      }
+      if (Array.isArray(r.value)) {
+        var e = r.value.filter(isDown)[0];
+        if (e) {
+          var t = parsePct(e.text != null ? e.text : e.value);
+          if (t != null) return t;
+        }
+        var er = Array.isArray(r.value_raw) ? r.value_raw.filter(isDown)[0] : null;
+        if (er) {
+          var raw = Number(er.value != null ? er.value : er.text);
+          if (isFinite(raw)) return raw > 100 ? raw / 100 : raw; // raw may be in 0.01 % units
+        }
+      }
+      return null;
+    }
+
+    var found = rows.some(function (r) { return downtimeOf(r) != null; });
+    if (!found) {
+      var chans = {};
+      rows.forEach(function (r) {
+        if (Array.isArray(r.value)) r.value.forEach(function (x) { if (x) chans[String(x.channel || x.name || x.channelid)] = true; });
+      });
+      var names = Object.keys(chans);
+      return { error: names.length
+        ? 'PRTG history has no Downtime channel (channels: ' + names.slice(0, 8).join(', ') + ')'
+        : 'PRTG returned no "Downtime" data (columns: ' + Object.keys(keys).slice(0, 10).join(', ') + ')' };
     }
 
     var monitored = 0, down = 0;
     rows.forEach(function (r) {
-      var cov = r.coverage_raw != null ? Number(r.coverage_raw) / 100 : parsePct(r.coverage);
+      var cov = parsePct(r.coverage);
+      if (cov == null && r.coverage_raw != null) cov = Number(r.coverage_raw) / 100;
       if (cov == null || !isFinite(cov)) cov = 100;
-      var dt = parsePct(r[downKey]);
-      if (dt == null) dt = parsePct(r[downKey + '(RAW)']);
+      var dt = downtimeOf(r);
       if (dt == null) dt = 0;
       var secs = SLOT * Math.min(Math.max(cov, 0), 100) / 100;
       monitored += secs;
