@@ -9,7 +9,8 @@
     reloadPageHours: 6,
     fitToScreen: 'auto', // grow text to fill the screen: true / false / 'auto' (= on for panels layout)
     fitMaxFontPx: 48,    // upper limit for fit-to-screen text size
-    panelColumns: 0,     // panels per row; 0 = all panels in one row  // full page reload so wall screens pick up a new file version (0 = never)
+    panelColumns: 0,     // panels per row; 0 = all panels in one row
+    detailAutoCloseSeconds: 120, // graph panel closes itself after this long without interaction (0 = never)  // full page reload so wall screens pick up a new file version (0 = never)
     sections: [],
     panels: [],   // map-style layout: [{ title, items: [{ device, sensor, label }] }] - overrides sections
     unmatched: 'group',
@@ -109,14 +110,17 @@
   var DEVICE_COLS = 'objid,group,device,host,status,tags,priority';
   var SENSOR_COLS = 'objid,parentid,group,device,sensor,status,message,lastvalue,priority,tags,downtimesince';
 
+  function authQuery() {
+    if (CFG.apiToken) return '&apitoken=' + encodeURIComponent(CFG.apiToken);
+    if (CFG.username && CFG.passhash) {
+      return '&username=' + encodeURIComponent(CFG.username) + '&passhash=' + encodeURIComponent(CFG.passhash);
+    }
+    return '';
+  }
+
   function prtgTable(content, columns, signal) {
     var url = (CFG.prtgBase || '') + '/api/table.json?content=' + content +
-      '&output=json&count=50000&columns=' + columns;
-    if (CFG.apiToken) {
-      url += '&apitoken=' + encodeURIComponent(CFG.apiToken);
-    } else if (CFG.username && CFG.passhash) {
-      url += '&username=' + encodeURIComponent(CFG.username) + '&passhash=' + encodeURIComponent(CFG.passhash);
-    }
+      '&output=json&count=50000&columns=' + columns + authQuery();
     // Send the same request headers PRTG's own web UI (jQuery) sends.
     var headers = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
     var csrf = document.querySelector('meta[name="csrf-token"]');
@@ -385,6 +389,7 @@
         var o = r.hit.obj;
         var c = cls(o.status);
         var li = el('li', 'row s-' + c);
+        clickable(li, r.hit.kind, o.id);
         li.title = (r.hit.kind === 'sensor' ? o.device + ' › ' + o.name : o.name) + ' - ' + label(o.status) +
           (o.message && o.message !== 'OK' ? '\n' + o.message : '');
         li.appendChild(el('span', 'dot'));
@@ -437,6 +442,7 @@
   function renderTile(d) {
     var c = cls(d.status);
     var tile = el('div', 'tile s-' + c);
+    clickable(tile, 'device', d.id);
     tile.title = d.name + ' - ' + label(d.status) + (d.group ? ' (' + d.group + ')' : '');
 
     var top = el('div', 'tile-top');
@@ -497,6 +503,7 @@
     m.alerts.slice(0, CFG.maxAlerts).forEach(function (a) {
       var c = cls(a.status);
       var li = el('li', 'alert s-' + c + (prev && !prev.has(a.id) ? ' new' : ''));
+      clickable(li, 'sensor', a.id);
       var row = el('div', 'a-top');
       row.appendChild(el('span', 'badge', label(a.status)));
       row.appendChild(el('span', 'a-dev', a.device));
@@ -524,6 +531,7 @@
     else renderSections(m);
     renderAlerts(m);
     fitToScreen();
+    if (detail.open) updateDetail();
     document.title = (m.totals.down ? '(' + m.totals.down + ' DOWN) ' : '') + CFG.title;
   }
 
@@ -587,6 +595,188 @@
         setTimeout(cycle, Math.max(5, CFG.refreshSeconds) * 1000);
       });
   }
+
+  // ------------------------------------------------------------------ detail panel (click a row)
+  // Shows PRTG's own graph for the sensor (chart.svg, falling back to
+  // chart.png) with Live / 2 days / 30 days / 365 days tabs.
+  var GRAPHS = [['Live (2 h)', 0], ['2 days', 1], ['30 days', 2], ['365 days', 3]];
+  var detail = { open: false, kind: null, id: null, sensorId: null, graph: 0, refresh: null, idle: null };
+
+  function clickable(node, kind, id) {
+    node.classList.add('clickable');
+    node.setAttribute('data-kind', kind);
+    node.setAttribute('data-id', String(id));
+    node.setAttribute('role', 'button');
+    node.tabIndex = 0;
+  }
+
+  function onActivate(e) {
+    if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+    var n = e.target.closest ? e.target.closest('.clickable') : null;
+    if (!n) return;
+    e.preventDefault();
+    openDetail(n.getAttribute('data-kind'), Number(n.getAttribute('data-id')));
+  }
+  ['click', 'keydown'].forEach(function (t) {
+    $('sections').addEventListener(t, onActivate);
+    $('alert-list').addEventListener(t, onActivate);
+  });
+
+  function findSensor(id) {
+    return state.data ? state.data.sensors.filter(function (s) { return s.id === id; })[0] : null;
+  }
+  function findDevice(id) {
+    return state.data ? state.data.devices.filter(function (d) { return d.id === id; })[0] : null;
+  }
+  function deviceSensors(devId) {
+    return state.data ? state.data.sensors.filter(function (s) { return s.deviceId === devId; }) : [];
+  }
+
+  function currentSensor() {
+    if (detail.kind === 'sensor') return findSensor(detail.id);
+    var list = deviceSensors(detail.id);
+    return list.filter(function (s) { return s.id === detail.sensorId; })[0] ||
+      list.filter(function (s) { return /ping/i.test(s.name); })[0] || list[0] || null;
+  }
+
+  function armIdle() {
+    clearTimeout(detail.idle);
+    var secs = CFG.detailAutoCloseSeconds;
+    if (secs > 0) detail.idle = setTimeout(closeDetail, secs * 1000);
+  }
+
+  function openDetail(kind, id) {
+    detail.open = true;
+    detail.kind = kind;
+    detail.id = id;
+    detail.sensorId = null;
+    detail.graph = 0;
+    $('detail').hidden = false;
+    updateDetail();
+    loadGraph();
+    clearInterval(detail.refresh);
+    detail.refresh = setInterval(function () { if (detail.graph === 0) loadGraph(); }, 60000);
+    armIdle();
+    $('detail-close').focus();
+  }
+
+  function closeDetail() {
+    detail.open = false;
+    $('detail').hidden = true;
+    clearInterval(detail.refresh);
+    clearTimeout(detail.idle);
+    $('detail-graph').removeAttribute('src');
+  }
+
+  function updateDetail() {
+    var s = currentSensor();
+    var dev = detail.kind === 'device' ? findDevice(detail.id) : (s ? findDevice(s.deviceId) : null);
+    var head = $('detail-head');
+    head.textContent = '';
+    if (!s && !dev) {
+      head.appendChild(el('h2', null, 'No longer visible in PRTG'));
+      return;
+    }
+    var c = cls(s ? s.status : dev.status);
+    $('detail-card').className = 'detail-card s-' + c;
+
+    var title = el('div', 'd-title');
+    title.appendChild(el('span', 'dot'));
+    title.appendChild(el('h2', null, s ? s.name : dev.name));
+    title.appendChild(el('span', 'badge', label(s ? s.status : dev.status)));
+    head.appendChild(title);
+
+    var facts = el('div', 'd-facts');
+    function fact(k, v) {
+      if (!v) return;
+      var f = el('div', 'fact');
+      f.appendChild(el('span', 'k', k));
+      f.appendChild(el('span', 'v', v));
+      facts.appendChild(f);
+    }
+    fact('Device', dev ? dev.name + (dev.host ? '  (' + dev.host + ')' : '') : (s && s.device));
+    fact('Group', (dev && dev.group) || (s && s.group));
+    if (s) {
+      fact('Last value', s.lastValue);
+      fact('Message', s.message && s.message !== 'OK' ? s.message : 'OK');
+      fact('Down for', s.downSince);
+      fact('Sensor ID', '#' + s.id);
+    }
+    head.appendChild(facts);
+
+    // device: let the user switch between its sensors
+    var picker = $('detail-sensors');
+    picker.textContent = '';
+    if (detail.kind === 'device') {
+      deviceSensors(detail.id).forEach(function (x) {
+        var b = el('button', 'chip s-' + cls(x.status) + (s && x.id === s.id ? ' on' : ''), x.name);
+        b.type = 'button';
+        b.addEventListener('click', function () { detail.sensorId = x.id; updateDetail(); loadGraph(); armIdle(); });
+        picker.appendChild(b);
+      });
+    }
+    picker.hidden = detail.kind !== 'device';
+
+    var tabs = $('detail-tabs');
+    tabs.textContent = '';
+    GRAPHS.forEach(function (g) {
+      var b = el('button', 'tab' + (detail.graph === g[1] ? ' on' : ''), g[0]);
+      b.type = 'button';
+      b.addEventListener('click', function () { detail.graph = g[1]; updateDetail(); loadGraph(); armIdle(); });
+      tabs.appendChild(b);
+    });
+
+    var link = $('detail-open');
+    if (s) {
+      link.href = (CFG.prtgBase || '') + '/sensor.htm?id=' + s.id;
+      link.hidden = false;
+    } else link.hidden = true;
+  }
+
+  function chartUrl(id, fmt) {
+    var box = $('detail-graph-box');
+    var w = Math.max(400, Math.min(2400, Math.round(box.clientWidth || 900)));
+    var h = Math.max(220, Math.round(w * 0.42));
+    return (CFG.prtgBase || '') + '/chart.' + fmt + '?type=graph&graphid=' + detail.graph + '&id=' + id +
+      '&width=' + w + '&height=' + h + '&_=' + Date.now() + authQuery();
+  }
+
+  function loadGraph() {
+    var s = currentSensor();
+    var img = $('detail-graph');
+    var msg = $('detail-graph-msg');
+    msg.hidden = true;
+    if (!s) { img.removeAttribute('src'); return; }
+    if (DEMO || CFG.source !== 'prtg') {
+      img.removeAttribute('src');
+      msg.hidden = false;
+      msg.textContent = DEMO ? 'Graphs are not available with demo data.' : 'Graphs need the single-file (direct PRTG) build.';
+      return;
+    }
+    var triedPng = false;
+    img.onerror = function () {
+      if (!triedPng) { triedPng = true; img.src = chartUrl(s.id, 'png'); return; }
+      img.removeAttribute('src');
+      msg.hidden = false;
+      msg.textContent = 'PRTG did not return a graph for this sensor. Use "Open in PRTG" to see it there.';
+    };
+    img.onload = function () { msg.hidden = true; };
+    img.alt = s.name + ' graph';
+    img.src = chartUrl(s.id, 'svg');
+  }
+
+  $('detail-close').addEventListener('click', closeDetail);
+  $('detail').addEventListener('click', function (e) { if (e.target === $('detail')) closeDetail(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && detail.open) closeDetail(); });
+
+  // Kiosk: hide the cursor only while the mouse is idle
+  var mouseTimer;
+  document.addEventListener('mousemove', function () {
+    document.body.classList.remove('mouse-idle');
+    clearTimeout(mouseTimer);
+    mouseTimer = setTimeout(function () { document.body.classList.add('mouse-idle'); }, 4000);
+    if (detail.open) armIdle();
+  });
 
   // ------------------------------------------------------------------ fit to screen
   // Wall screens: find the largest root font size at which the device area
@@ -665,6 +855,7 @@
 
   $('title').textContent = CFG.title;
   if (params.has('kiosk')) autoScroll();
+  if (params.has('kiosk')) document.body.classList.add('mouse-idle');
   if (CFG.reloadPageHours > 0) {
     setTimeout(function () { location.reload(); }, CFG.reloadPageHours * 3600 * 1000);
   }

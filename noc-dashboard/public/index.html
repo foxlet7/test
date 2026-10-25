@@ -39,6 +39,25 @@
     </aside>
   </main>
 
+  <div class="detail" id="detail" hidden>
+    <div class="detail-card" id="detail-card" role="dialog" aria-modal="true" aria-labelledby="detail-head">
+      <div class="detail-top">
+        <div id="detail-head"></div>
+        <button type="button" class="detail-close" id="detail-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="chips" id="detail-sensors" hidden></div>
+      <div class="d-bar">
+        <div class="tabs" id="detail-tabs"></div>
+        <span class="spacer"></span>
+        <a class="d-open" id="detail-open" target="_blank" rel="noopener">Open in PRTG &rarr;</a>
+      </div>
+      <div class="graph-box" id="detail-graph-box">
+        <img id="detail-graph" alt="">
+        <div class="graph-msg" id="detail-graph-msg" hidden></div>
+      </div>
+    </div>
+  </div>
+
   <script src="config.js"></script>
   <script src="demo-data.js"></script>
   <script src="app.js"></script>
