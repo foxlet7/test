@@ -257,7 +257,7 @@ window.NOC_CONFIG = {
   maxAlerts: 50,             // max rows in the alert panel
   alertStatuses: ['down', 'warn', 'unusual', 'ack'], // what counts as an alert in the right panel
 };
-window.NOC_BUILD = '2026-10-25 12:58';
+window.NOC_BUILD = '2026-10-25 13:04';
 
 </script>
   <script>
@@ -324,7 +324,25 @@ window.NOC_BUILD = '2026-10-25 12:58';
     return '';
   }
 
-  var debugInfo = { path: '', status: 0, raw: '' };
+  var debugInfo = { attempts: [] }; // first few history requests + raw replies (?debug=1)
+
+  // Plain-text request with the same auth/headers; used for history (JSON / XML / CSV).
+  function apiText(path) {
+    return fetch((CFG.prtgBase || '') + path + authQuery(), {
+      cache: 'no-store', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    }).then(function (r) {
+      if (r.status === 401 || r.status === 403) throw new Error('PRTG refused the request (HTTP ' + r.status + ') - check the API key in the file');
+      return r.text().then(function (t) {
+        if (debugInfo.attempts.length < 6) debugInfo.attempts.push({ path: path, status: r.status, raw: t });
+        if (!r.ok) {
+          var err = new Error('PRTG returned HTTP ' + r.status + ': ' + t.slice(0, 200));
+          err.retryable = r.status === 429 || r.status >= 500 || /limit|too many|busy/i.test(t);
+          throw err;
+        }
+        return t;
+      });
+    });
+  }
 
   function api(path) {
     var headers = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
@@ -333,11 +351,6 @@ window.NOC_BUILD = '2026-10-25 12:58';
     }).then(function (r) {
       if (r.status === 401 || r.status === 403) throw new Error('PRTG refused the request (HTTP ' + r.status + ') - check the API key in the file');
       return r.text().then(function (t) {
-        if (/historicdata/.test(path) && !debugInfo.raw) {
-          debugInfo.path = path;
-          debugInfo.status = r.status;
-          debugInfo.raw = t;
-        }
         var j;
         try { j = JSON.parse(t); } catch (e) { j = null; }
         if (!r.ok || !j) {
@@ -462,15 +475,22 @@ window.NOC_BUILD = '2026-10-25 12:58';
     return isFinite(n) ? n : null;
   }
 
-  function history(sensorId, start, end, bucket) {
-    if (DEMO) return Promise.resolve(window.NOC_REPORT_DEMO.history(sensorId, start, end));
-    var path = '/api/historicdata.json?id=' + sensorId + '&avg=' + bucket +
+  // PRTG's history comes in three formats. Some PRTG versions put only ONE value
+  // per row into JSON (no Downtime); XML and CSV carry every channel by name.
+  // Try JSON -> XML -> CSV on the first sensor and stick with what works.
+  var HIST_FORMAT = null;
+  var FORMATS = ['json', 'xml', 'csv'];
+
+  function histPath(fmt, id, start, end, bucket) {
+    return '/api/historicdata.' + fmt + '?id=' + id + '&avg=' + bucket +
       '&sdate=' + prtgDate(start) + '&edate=' + prtgDate(end);
+  }
+
+  function withRetry(fn) {
     var attempt = 0;
     function go() {
-      return api(path).catch(function (err) {
-        // PRTG throttles historic-data requests; back off and retry.
-        if (err.retryable && attempt < CFG.historyRetries) {
+      return fn().catch(function (err) {
+        if (err.retryable && attempt < CFG.historyRetries) { // PRTG throttles history requests
           attempt += 1;
           setProgress('PRTG is throttling history requests - waiting ' + CFG.historyRetryWaitSeconds + 's (retry ' + attempt + ')…');
           return sleep(CFG.historyRetryWaitSeconds * 1000).then(go);
@@ -481,68 +501,150 @@ window.NOC_BUILD = '2026-10-25 12:58';
     return go();
   }
 
-  function availability(hist, bucket) {
-    var SLOT = bucket || DAY;
-    var rows = (hist.histdata || []).filter(function (r) {
-      return !/sum|average|total/i.test(String(r.datetime || ''));
-    });
-    if (!rows.length) return { error: 'no history for this period' };
+  function isSummaryRow(label) { return /sum|average|total/i.test(String(label || '')); }
+  function isDownName(name, id) { return /^downtime\b/i.test(String(name || '').trim()) || String(id) === '-4'; }
+  function rawPct(v) { var n = parseFloat(v); return isFinite(n) ? (n > 100 ? n / 100 : n) : null; } // raw may be 0.01 % units
 
-    // PRTG returns history in one of two shapes:
-    //  a) one key per channel:   { "Downtime": "0 %", "Downtime(RAW)": 0, coverage, ... }
-    //  b) a list per row:        { value: [{ channel: "Downtime", channelid: -4, text: "0 %" }, ...],
-    //                              value_raw: [{ channel: "Downtime", value: 0 }, ...], coverage, ... }
-    var keys = {};
-    rows.forEach(function (r) { Object.keys(r).forEach(function (k) { keys[k] = true; }); });
-    var downKey = Object.keys(keys).filter(function (k) { return /^downtime(\s*\(%\))?$/i.test(k.trim()); })[0];
-
-    function isDown(x) {
-      return x && (/^downtime\b/i.test(String(x.channel || x.name || '').trim()) || Number(x.channelid) === -4);
-    }
-    function downtimeOf(r) {
-      if (downKey) {
-        var v = parsePct(r[downKey]);
-        return v != null ? v : parsePct(r[downKey + '(RAW)']);
-      }
-      if (Array.isArray(r.value)) {
-        var e = r.value.filter(isDown)[0];
-        if (e) {
-          var t = parsePct(e.text != null ? e.text : e.value);
-          if (t != null) return t;
-        }
-        var er = Array.isArray(r.value_raw) ? r.value_raw.filter(isDown)[0] : null;
-        if (er) {
-          var raw = Number(er.value != null ? er.value : er.text);
-          if (isFinite(raw)) return raw > 100 ? raw / 100 : raw; // raw may be in 0.01 % units
-        }
-      }
-      return null;
-    }
-
-    var found = rows.some(function (r) { return downtimeOf(r) != null; });
-    if (!found) {
-      var chans = {};
+  // -> { rows: [{ cov, down }], info }  (down = null when the row has no Downtime value)
+  var PARSERS = {
+    json: function (text) {
+      var j = JSON.parse(text);
+      var rows = (j.histdata || []).filter(function (r) { return !isSummaryRow(r.datetime); });
+      var downKey = null, chans = {};
       rows.forEach(function (r) {
+        Object.keys(r).forEach(function (k) { if (!downKey && /^downtime(\s*\(%\))?$/i.test(k.trim())) downKey = k; });
         if (Array.isArray(r.value)) r.value.forEach(function (x) { if (x) chans[String(x.channel || x.name || x.channelid)] = true; });
       });
-      var names = Object.keys(chans);
-      return { error: names.length
-        ? 'PRTG history has no Downtime channel (channels: ' + names.slice(0, 8).join(', ') + ')'
-        : 'PRTG returned no "Downtime" data (columns: ' + Object.keys(keys).slice(0, 10).join(', ') + ')' };
-    }
+      return {
+        rows: rows.map(function (r) {
+          var down = null;
+          if (downKey) {
+            down = parsePct(r[downKey]);
+            if (down == null) down = rawPct(r[downKey + '(RAW)']);
+          } else if (Array.isArray(r.value)) {
+            var e = r.value.filter(function (x) { return x && isDownName(x.channel || x.name, x.channelid); })[0];
+            if (e) down = parsePct(e.text != null ? e.text : e.value);
+            if (down == null && Array.isArray(r.value_raw)) {
+              var er = r.value_raw.filter(function (x) { return x && isDownName(x.channel || x.name, x.channelid); })[0];
+              if (er) down = rawPct(er.value != null ? er.value : er.text);
+            }
+          }
+          var cov = parsePct(r.coverage);
+          if (cov == null && r.coverage_raw != null) cov = Number(r.coverage_raw) / 100;
+          return { cov: cov, down: down };
+        }),
+        info: 'JSON: ' + (Object.keys(chans).length ? 'channels ' + Object.keys(chans).join(', ')
+          : 'one value per row, e.g. ' + JSON.stringify(rows[0] || {}).slice(0, 140)),
+      };
+    },
+    xml: function (text) {
+      var doc = new DOMParser().parseFromString(text, 'text/xml');
+      if (doc.getElementsByTagName('parsererror').length) throw new Error('not valid XML');
+      var chans = {};
+      function textOf(el, tag) { var n = el.getElementsByTagName(tag)[0]; return n ? n.textContent : null; }
+      var items = Array.prototype.slice.call(doc.getElementsByTagName('item'));
+      return {
+        rows: items.filter(function (it) { return !isSummaryRow(textOf(it, 'datetime')); }).map(function (it) {
+          var down = null, downRaw = null;
+          Array.prototype.forEach.call(it.children, function (c) {
+            var tag = c.tagName.toLowerCase();
+            if (tag !== 'value' && tag !== 'value_raw') return;
+            var ch = c.getAttribute('channel') || '', cid = c.getAttribute('channelid');
+            chans[ch || cid] = true;
+            if (!isDownName(ch, cid)) return;
+            if (tag === 'value') down = parsePct(c.textContent);
+            else downRaw = rawPct(c.textContent);
+          });
+          var cov = parsePct(textOf(it, 'coverage'));
+          if (cov == null && textOf(it, 'coverage_raw') != null) cov = Number(textOf(it, 'coverage_raw')) / 100;
+          return { cov: cov, down: down != null ? down : downRaw };
+        }),
+        info: 'XML: channels ' + (Object.keys(chans).join(', ') || 'none'),
+      };
+    },
+    csv: function (text) {
+      var lines = parseCsv(text);
+      var head = (lines[0] || []).map(function (h) { return h.trim(); });
+      var di = head.findIndex(function (h) { return /^downtime$/i.test(h); });
+      var dri = head.findIndex(function (h) { return /^downtime\s*\(raw\)$/i.test(h); });
+      var ci = head.findIndex(function (h) { return /^coverage$/i.test(h); });
+      var cri = head.findIndex(function (h) { return /^coverage\s*\(raw\)$/i.test(h); });
+      return {
+        rows: lines.slice(1).filter(function (l) { return l.length > 1 && !isSummaryRow(l[0]); }).map(function (l) {
+          var down = di >= 0 ? parsePct(l[di]) : null;
+          if (down == null && dri >= 0) down = rawPct(l[dri]);
+          var cov = ci >= 0 ? parsePct(l[ci]) : null;
+          if (cov == null && cri >= 0) cov = Number(l[cri]) / 100;
+          return { cov: cov, down: down };
+        }),
+        info: 'CSV: columns ' + head.slice(0, 12).join(', '),
+      };
+    },
+  };
 
+  function parseCsv(text) {
+    var out = [], row = [], cur = '', q = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (q) {
+        if (ch === '"' && text[i + 1] === '"') { cur += '"'; i++; }
+        else if (ch === '"') q = false;
+        else cur += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ',') { row.push(cur); cur = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && text[i + 1] === '\n') i++;
+        row.push(cur); cur = '';
+        if (row.length > 1 || row[0] !== '') out.push(row);
+        row = [];
+      } else cur += ch;
+    }
+    if (cur !== '' || row.length) { row.push(cur); out.push(row); }
+    return out;
+  }
+
+  function history(sensorId, start, end, bucket) {
+    if (DEMO) return Promise.resolve(window.NOC_REPORT_DEMO.history(sensorId, start, end));
+    var order = HIST_FORMAT ? [HIST_FORMAT] : FORMATS;
+    var infos = [];
+    var i = 0;
+    function next() {
+      if (i >= order.length) return Promise.resolve({ rows: [], noDowntime: true, info: infos.join(' | ') });
+      var fmt = order[i++];
+      return withRetry(function () { return apiText(histPath(fmt, sensorId, start, end, bucket)); })
+        .then(function (text) {
+          var parsed;
+          try { parsed = PARSERS[fmt](text); } catch (e) { parsed = { rows: [], info: fmt.toUpperCase() + ': unreadable (' + e.message + ')' }; }
+          if (parsed.rows.some(function (r) { return r.down != null; })) {
+            HIST_FORMAT = fmt;
+            parsed.format = fmt;
+            return parsed;
+          }
+          infos.push(parsed.info);
+          if (HIST_FORMAT) return { rows: parsed.rows, noDowntime: true, info: parsed.info };
+          return next();
+        }, function (err) {
+          if (HIST_FORMAT) throw err;
+          infos.push(fmt.toUpperCase() + ': ' + err.message.slice(0, 100));
+          return next();
+        });
+    }
+    return next();
+  }
+
+  function availability(h, bucket) {
+    var SLOT = bucket || DAY;
+    if (h.noDowntime) return { error: 'PRTG history has no Downtime values — ' + h.info };
+    var rows = h.rows || [];
+    if (!rows.length) return { error: 'no history for this period' };
     var monitored = 0, down = 0;
     rows.forEach(function (r) {
-      var cov = parsePct(r.coverage);
-      if (cov == null && r.coverage_raw != null) cov = Number(r.coverage_raw) / 100;
-      if (cov == null || !isFinite(cov)) cov = 100;
-      var dt = downtimeOf(r);
-      if (dt == null) dt = 0;
+      var cov = r.cov == null || !isFinite(r.cov) ? 100 : r.cov;
+      var dt = r.down == null ? 0 : r.down;
       var secs = SLOT * Math.min(Math.max(cov, 0), 100) / 100;
       monitored += secs;
       down += secs * Math.min(Math.max(dt, 0), 100) / 100;
     });
-
     var periodSecs = rows.length * SLOT;
     return {
       uptime: monitored > 0 ? 100 * (1 - down / monitored) : null,
@@ -667,9 +769,10 @@ window.NOC_BUILD = '2026-10-25 12:58';
     if (params.has('debug')) {
       var d = $('debug') || document.body.appendChild(el('pre', 'debug'));
       d.id = 'debug';
-      d.textContent = 'DEBUG - first historic data request\n' +
-        'GET ' + debugInfo.path + ' (+ credentials, hidden)\nHTTP ' + debugInfo.status + '\n\n' +
-        (debugInfo.raw || '(no history request was made)').slice(0, 4000);
+      d.textContent = 'DEBUG - first history requests (credentials hidden). Format in use: ' + (HIST_FORMAT || 'none worked') + '\n\n' +
+        (debugInfo.attempts.length ? debugInfo.attempts.map(function (a) {
+          return 'GET ' + a.path + '\nHTTP ' + a.status + '\n' + a.raw.slice(0, 1500);
+        }).join('\n\n----------------\n\n') : '(no history request was made)');
     }
 
     var root = $('tables');
@@ -717,7 +820,7 @@ window.NOC_BUILD = '2026-10-25 12:58';
 
     var foot = $('foot');
     foot.hidden = false;
-    foot.textContent = 'Source: PRTG historic data (' + (res.bucket === 3600 ? 'hourly' : 'daily') + ' averages), ' + res.start.toLocaleString() + ' – ' + res.end.toLocaleString() +
+    foot.textContent = 'Source: PRTG historic data (' + (res.bucket === 3600 ? 'hourly' : 'daily') + ' averages' + (HIST_FORMAT ? ', ' + HIST_FORMAT.toUpperCase() : '') + '), ' + res.start.toLocaleString() + ' – ' + res.end.toLocaleString() +
       '. Availability = 100% − PRTG "Downtime", over the time each sensor was actually monitored (paused time excluded). ' +
       'Devices are measured by their Ping sensor. Generated ' + new Date().toLocaleString() + (DEMO ? ' · DEMO DATA' : '') + '.' +
       (window.NOC_BUILD ? ' Report build ' + window.NOC_BUILD + '.' : '');

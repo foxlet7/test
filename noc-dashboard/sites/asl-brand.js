@@ -10,6 +10,6 @@ Object.assign(window.NOC_CONFIG, {
   brandName: 'AlasilaCX',
   logo: 'alasilacx-logo.png',
   wordmark: ['alasila', 'cx'],
-  reportPage: 'acx-uptime.htm',   // the Reports button opens this file (next to the dashboard)
+  reportPage: 'acx-report-v2.htm',   // the Reports button opens this file. PRTG caches webroot files by name, so bump the version on updates
   weekStartsOn: 0,   // reports: 0 = Sunday (KSA working week), 1 = Monday
 });
