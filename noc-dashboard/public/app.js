@@ -682,7 +682,7 @@
     if (INSIGHTS) renderInsights(m, shown);
     fitToScreen();
     if (detail.open) updateDetail();
-    document.title = (m.totals.down ? '(' + m.totals.down + ' DOWN) ' : '') + CFG.title;
+    document.title = (m.totals.down ? '(' + m.totals.down + ' DOWN) ' : '') + (CFG.brandName ? CFG.brandName + ' ' : '') + CFG.title;
   }
 
   // ------------------------------------------------------------------ status / clock
@@ -1261,6 +1261,30 @@
 
   $('title').textContent = CFG.title;
 
+  // Branding: CFG.theme adds a body class; CFG.logo is an image next to this page
+  // in webroot (falls back to the CFG.wordmark text if the file is missing).
+  if (CFG.theme) document.body.classList.add('theme-' + CFG.theme);
+  (function () {
+    var box = $('logo');
+    function wordmark() {
+      box.textContent = '';
+      if (!CFG.wordmark) { box.hidden = true; return; }
+      var w = el('span', 'wm');
+      w.appendChild(el('span', 'wm-a', CFG.wordmark[0] || ''));
+      w.appendChild(el('span', 'wm-b', CFG.wordmark[1] || ''));
+      box.appendChild(w);
+      box.hidden = false;
+    }
+    if (CFG.logo) {
+      var img = document.createElement('img');
+      img.alt = CFG.brandName || 'logo';
+      img.onerror = wordmark;
+      img.onload = function () { box.hidden = false; fitToScreen(); };
+      img.src = CFG.logo;
+      box.appendChild(img);
+    } else wordmark();
+  })();
+
   // View switcher: presets in this page (instant), else links to other pages.
   // ?view=voip opens a view; ?rotate=60 cycles views on a wall screen.
   function markNav() {
@@ -1299,7 +1323,7 @@
       nav.hidden = false;
       if (rotate >= 15) {
         setInterval(function () {
-          if (detail.open) return;
+          if (detail.open || reportsOpen) return;
           var i = PRESETS.map(function (p) { return p.key; }).indexOf(view);
           switchView(PRESETS[(i + 1) % PRESETS.length].key);
         }, rotate * 1000);
@@ -1324,6 +1348,35 @@
     }
   })();
 
+  // Reports: the availability report page is embedded in this file (base64,
+  // see build-standalone.js) and opened in an overlay iframe - same window,
+  // same origin, so it reuses the PRTG access of this page.
+  var reportsOpen = false;
+  function openReports() {
+    var src = document.getElementById('report-src');
+    var frame = $('reports-frame');
+    if (src && src.textContent.trim()) {
+      var bytes = Uint8Array.from(atob(src.textContent.trim()), function (c) { return c.charCodeAt(0); });
+      var opts = JSON.stringify({ embedded: true, view: PRESETS.length > 1 ? view : 'all' }).replace(/</g, '\\u003c');
+      frame.srcdoc = new TextDecoder('utf-8').decode(bytes)
+        .replace('<head>', function () { return '<head><script>window.NOC_EMBED = ' + opts + ';<\/script>'; });
+    } else {
+      frame.src = 'noc-uptime.htm' + (view ? '?view=' + view : ''); // non-bundled install
+    }
+    $('reports').hidden = false;
+    reportsOpen = true;
+    if (detail.open) closeDetail();
+  }
+  function closeReports() {
+    $('reports').hidden = true;
+    reportsOpen = false;
+    $('reports-frame').removeAttribute('srcdoc');
+    $('reports-frame').removeAttribute('src');
+  }
+  $('reports-btn').addEventListener('click', openReports);
+  $('reports-close').addEventListener('click', closeReports);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && reportsOpen) closeReports(); });
+
   // Collapsible side (alerts) and bottom (insights) panels, remembered per browser.
   // Keyboard: A = alerts panel, I = insights, V = next view.
   var ui = store.get('noc-ui', { side: true, bottom: true });
@@ -1342,8 +1395,9 @@
   $('side-rail').addEventListener('click', function () { togglePanel('side'); });
   $('ins-toggle').addEventListener('click', function () { togglePanel('bottom'); });
   document.addEventListener('keydown', function (e) {
-    if (e.ctrlKey || e.metaKey || e.altKey || detail.open) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || detail.open || reportsOpen) return;
     var k = e.key.toLowerCase();
+    if (k === 'r') { openReports(); return; }
     if (k === 'a') togglePanel('side');
     else if (k === 'i') togglePanel('bottom');
     else if (k === 'v' && PRESETS.length > 1) {
@@ -1356,7 +1410,10 @@
   if (params.has('kiosk')) autoScroll();
   if (params.has('kiosk')) document.body.classList.add('mouse-idle');
   if (CFG.reloadPageHours > 0) {
-    setTimeout(function () { location.reload(); }, CFG.reloadPageHours * 3600 * 1000);
+    setTimeout(function tryReload() {
+      if (reportsOpen || detail.open) { setTimeout(tryReload, 60000); return; } // never interrupt a user
+      location.reload();
+    }, CFG.reloadPageHours * 3600 * 1000);
   }
   tick();
   setInterval(tick, 1000);

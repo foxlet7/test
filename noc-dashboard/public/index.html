@@ -10,6 +10,7 @@
 <body>
   <header class="top">
     <div class="brand">
+      <span class="logo" id="logo" hidden></span>
       <span class="conn" id="conn" title="Connection to PRTG"></span>
       <div>
         <div class="title-row"><h1 id="title">NOC Dashboard</h1><nav class="dash-nav" id="nav" hidden></nav></div>
@@ -18,6 +19,8 @@
     </div>
 
     <div class="summary" id="summary" aria-label="Sensor summary"></div>
+
+    <button type="button" class="hdr-btn" id="reports-btn" title="Weekly / monthly availability reports (R)">Reports</button>
 
     <div class="clock">
       <div class="time" id="clock-time">--:--:--</div>
@@ -68,6 +71,15 @@
       </div>
     </div>
   </div>
+
+  <div class="reports" id="reports" hidden>
+    <div class="reports-bar">
+      <span id="reports-title">Availability reports</span>
+      <button type="button" class="detail-close" id="reports-close" aria-label="Close reports">&times;</button>
+    </div>
+    <iframe id="reports-frame" title="Availability report"></iframe>
+  </div>
+  <template id="report-src"></template>
 
   <script src="config.js"></script>
   <script src="demo-data.js"></script>

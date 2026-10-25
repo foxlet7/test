@@ -254,9 +254,10 @@
     }).join('\r\n');
   }
 
+  if (CFG.theme) document.body.classList.add('theme-' + CFG.theme);
   $('limit').value = params.get('limit') || CFG.licenceLimit;
   $('days').value = params.get('days') || CFG.longDownDays;
-  $('title').textContent = CFG.title.replace(/\s*NOC$/i, '') + ' – Sensor Audit';
+  $('title').textContent = (CFG.brandName || CFG.title.replace(/\s*NOC$/i, '')) + ' – Sensor Audit';
 
   $('controls').addEventListener('submit', function (e) {
     e.preventDefault();

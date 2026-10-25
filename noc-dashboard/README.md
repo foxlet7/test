@@ -43,6 +43,19 @@ Build several into one page for a toggle in the header:
 - Alerts can be dismissed with ✓. A dismissed alert returns automatically when that sensor's status changes.
   Dismissals are stored per browser and nothing is written to PRTG.
 
+## Branding
+
+`sites/asl-brand.js` sets `theme: 'alasilacx'` (purple #8B86B8→#554D93, cyan #5CCBE2), `brandName`,
+`logo` (an image file next to the page in webroot, e.g. `alasilacx-logo.png`) and a text `wordmark`
+used until the logo file exists. Load it before the view files. Status colours stay standard.
+
+## Reports from the dashboard
+
+The dashboard build embeds the availability report. **Reports** (or the **R** key) opens it in the same
+window: Last week / This week / Last 7 days / Last month / This month / a chosen month / custom dates,
+for the current view or all views, with CSV export and Print / PDF. Weeks start on `weekStartsOn`
+(0 = Sunday). Periods up to 8 days use hourly history, longer ones daily.
+
 ## Monthly availability report
 
 `noc-uptime.htm` (build: `node build-standalone.js --page report.html sites/<site>.js local/secrets.js -o local/noc-uptime.htm`)

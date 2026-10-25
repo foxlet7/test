@@ -19,18 +19,24 @@
     historyRetryWaitSeconds: 20,
   }, window.NOC_CONFIG || {});
 
-  // Site files register views (NOC, VoIP, ...); cover the items of all of them.
+  // Site files register views (NOC, VoIP, ...). The report covers one view or all.
   var PRESETS = window.NOC_PRESETS || [];
-  if (PRESETS.length && !(CFG.panels || []).length) {
-    CFG.panels = PRESETS.reduce(function (a, p) {
+  var OWN_PANELS = (CFG.panels || []).slice();
+  function panelsFor(scope) {
+    if (!PRESETS.length) return OWN_PANELS;
+    var list = scope && scope !== 'all' ? PRESETS.filter(function (p) { return p.key === scope; }) : PRESETS;
+    return list.reduce(function (a, p) {
       return a.concat((p.panels || []).map(function (x) {
-        return Object.assign({}, x, { title: PRESETS.length > 1 ? (p.label || p.key) + ' · ' + x.title : x.title });
+        return Object.assign({}, x, { title: list.length > 1 ? (p.label || p.key) + ' · ' + x.title : x.title });
       }));
     }, []);
-    if (!window.NOC_CONFIG || !window.NOC_CONFIG.title || window.NOC_CONFIG.title === 'NOC Dashboard') {
-      CFG.title = (PRESETS[0].title || CFG.title).replace(/\s+(NOC|VoIP)$/i, '');
-    }
   }
+  if (!CFG.brandName && PRESETS.length && (!window.NOC_CONFIG || !window.NOC_CONFIG.title || window.NOC_CONFIG.title === 'NOC Dashboard')) {
+    CFG.title = (PRESETS[0].title || CFG.title).replace(/\s+(NOC|VoIP)$/i, '');
+  }
+
+  // Opened from the dashboard (iframe srcdoc): the dashboard injects window.NOC_EMBED.
+  var EMBED = window.NOC_EMBED || {};
   var params = new URLSearchParams(location.search);
   var DEMO = params.has('demo') && !!window.NOC_REPORT_DEMO;
   var DAY = 86400;
@@ -186,9 +192,9 @@
     return isFinite(n) ? n : null;
   }
 
-  function history(sensorId, start, end) {
+  function history(sensorId, start, end, bucket) {
     if (DEMO) return Promise.resolve(window.NOC_REPORT_DEMO.history(sensorId, start, end));
-    var path = '/api/historicdata.json?id=' + sensorId + '&avg=' + DAY +
+    var path = '/api/historicdata.json?id=' + sensorId + '&avg=' + bucket +
       '&sdate=' + prtgDate(start) + '&edate=' + prtgDate(end);
     var attempt = 0;
     function go() {
@@ -205,7 +211,8 @@
     return go();
   }
 
-  function availability(hist) {
+  function availability(hist, bucket) {
+    var SLOT = bucket || DAY;
     var rows = (hist.histdata || []).filter(function (r) {
       return !/sum|average|total/i.test(String(r.datetime || ''));
     });
@@ -223,12 +230,12 @@
       var dt = parsePct(r[downKey]);
       if (dt == null) dt = parsePct(r[downKey + '(RAW)']);
       if (dt == null) dt = 0;
-      var secs = DAY * Math.min(Math.max(cov, 0), 100) / 100;
+      var secs = SLOT * Math.min(Math.max(cov, 0), 100) / 100;
       monitored += secs;
       down += secs * Math.min(Math.max(dt, 0), 100) / 100;
     });
 
-    var periodSecs = rows.length * DAY;
+    var periodSecs = rows.length * SLOT;
     return {
       uptime: monitored > 0 ? 100 * (1 - down / monitored) : null,
       downSecs: down,
@@ -264,18 +271,19 @@
   }
 
   // ------------------------------------------------------------------ main
-  function run(monthStr, sla) {
-    var y = Number(monthStr.slice(0, 4)), m = Number(monthStr.slice(5, 7));
-    var start = new Date(y, m - 1, 1, 0, 0, 0);
-    var end = new Date(y, m, 1, 0, 0, 0);
+  function run(period, sla, scope) {
+    var start = period.start, end = period.end, label = period.label;
     var now = new Date();
     var partial = end > now;
-    if (partial) end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-    if (end <= start) return Promise.reject(new Error('That month has not started yet.'));
+    if (partial) end = now;
+    if (end <= start) return Promise.reject(new Error('That period has not started yet.'));
+    // hourly buckets for short periods (weekly reports), daily for longer ones
+    var bucket = (end - start) <= 8 * DAY * 1000 ? 3600 : DAY;
 
-    var label = start.toLocaleDateString([], { month: 'long', year: 'numeric' });
-    $('period').textContent = label + (partial ? ' (month to date, up to ' + end.toLocaleDateString() + ')' : '') +
-      ' · SLA target ' + sla + '%';
+    var scopeLabel = scope && scope !== 'all' && PRESETS.length > 1
+      ? ' · ' + ((PRESETS.filter(function (p) { return p.key === scope; })[0] || {}).label || scope) : '';
+    $('period').textContent = label + (partial ? ' (to date)' : '') + scopeLabel + ' · SLA target ' + sla + '%';
+    CFG.panels = panelsFor(scope);
 
     setProgress('Loading PRTG inventory…');
     return loadInventory().then(function (inv) {
@@ -301,14 +309,14 @@
         if (i >= jobs.length) return Promise.resolve();
         var row = jobs[i++];
         setProgress('Reading history ' + i + ' / ' + jobs.length + ': ' + (row.item.label || row.sensor.name) + '…');
-        return history(row.sensor.id, start, end)
-          .then(function (h) { row.result = availability(h); })
+        return history(row.sensor.id, start, end, bucket)
+          .then(function (h) { row.result = availability(h, bucket); })
           .catch(function (e) { row.result = { error: e.message }; })
           .then(next);
       }
       return next().then(function () {
         setProgress('');
-        return { panels: panels, label: label, partial: partial, start: start, end: end, sla: sla };
+        return { panels: panels, label: label, partial: partial, start: start, end: end, sla: sla, bucket: bucket, scopeLabel: scopeLabel };
       });
     });
   }
@@ -384,11 +392,11 @@
 
     var foot = $('foot');
     foot.hidden = false;
-    foot.textContent = 'Source: PRTG historic data (daily averages), ' + res.start.toLocaleString() + ' – ' + res.end.toLocaleString() +
+    foot.textContent = 'Source: PRTG historic data (' + (res.bucket === 3600 ? 'hourly' : 'daily') + ' averages), ' + res.start.toLocaleString() + ' – ' + res.end.toLocaleString() +
       '. Availability = 100% − PRTG "Downtime", over the time each sensor was actually monitored (paused time excluded). ' +
       'Devices are measured by their Ping sensor. Generated ' + new Date().toLocaleString() + (DEMO ? ' · DEMO DATA' : '') + '.';
 
-    document.title = CFG.title + ' – Availability ' + res.label;
+    document.title = (CFG.brandName || CFG.title) + ' – Availability ' + res.label + res.scopeLabel;
     $('csv').disabled = false;
     $('print').disabled = false;
   }
@@ -419,29 +427,111 @@
     }).join('\r\n');
   }
 
+  // ------------------------------------------------------------------ periods
+  var WEEK_START = CFG.weekStartsOn != null ? Number(CFG.weekStartsOn) : 0; // 0 = Sunday
+  function day0(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function addDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function weekStart(d) { var x = day0(d); return addDays(x, -((x.getDay() - WEEK_START + 7) % 7)); }
+  function fmtD(d, withYear) {
+    return d.toLocaleDateString([], withYear ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'short' });
+  }
+  function rangeLabel(a, b) { // b exclusive
+    var last = addDays(b, -1);
+    return fmtD(a, a.getFullYear() !== last.getFullYear()) + ' – ' + fmtD(last, true);
+  }
+  function monthPeriod(y, m) {
+    var a = new Date(y, m, 1), b = new Date(y, m + 1, 1);
+    return { start: a, end: b, label: a.toLocaleDateString([], { month: 'long', year: 'numeric' }), slug: y + '-' + pad(m + 1) };
+  }
+  function getPeriod() {
+    var today = day0(new Date()), r = $('range').value, a, b;
+    if (r === 'last-month') return monthPeriod(today.getFullYear(), today.getMonth() - 1);
+    if (r === 'this-month') return monthPeriod(today.getFullYear(), today.getMonth());
+    if (r === 'month') {
+      var v = $('month').value;
+      if (!v) throw new Error('Pick a month.');
+      return monthPeriod(Number(v.slice(0, 4)), Number(v.slice(5, 7)) - 1);
+    }
+    if (r === 'last-week') { b = weekStart(today); a = addDays(b, -7); }
+    else if (r === 'this-week') { a = weekStart(today); b = addDays(a, 7); }
+    else if (r === 'last-7') { b = today; a = addDays(b, -7); }
+    else {
+      if (!$('from').value || !$('to').value) throw new Error('Pick both dates.');
+      var f = $('from').value.split('-').map(Number), t = $('to').value.split('-').map(Number);
+      a = new Date(f[0], f[1] - 1, f[2]); b = addDays(new Date(t[0], t[1] - 1, t[2]), 1);
+      if (b <= a) throw new Error('"To" must be on or after "From".');
+    }
+    var lbl = (r === 'last-week' || r === 'this-week' ? 'Week ' : '') + rangeLabel(a, b);
+    return { start: a, end: b, label: lbl, slug: a.getFullYear() + '-' + pad(a.getMonth() + 1) + '-' + pad(a.getDate()) + '_' + Math.round((b - a) / 864e5) + 'd' };
+  }
+  function syncRangeInputs() {
+    var r = $('range').value;
+    $('month-wrap').hidden = r !== 'month';
+    $('from-wrap').hidden = r !== 'custom';
+    $('to-wrap').hidden = r !== 'custom';
+  }
+
   // ------------------------------------------------------------------ wire up
+  if (CFG.theme) document.body.classList.add('theme-' + CFG.theme);
+  if (EMBED.embedded) document.body.classList.add('embedded');
+  (function () {
+    var box = $('logo');
+    if (!box) return;
+    function wordmark() {
+      box.textContent = '';
+      if (!CFG.wordmark) { box.hidden = true; return; }
+      var w = el('span', 'wm');
+      w.appendChild(el('span', 'wm-a', CFG.wordmark[0] || ''));
+      w.appendChild(el('span', 'wm-b', CFG.wordmark[1] || ''));
+      box.appendChild(w);
+      box.hidden = false;
+    }
+    if (CFG.logo) {
+      var img = document.createElement('img');
+      img.alt = CFG.brandName || 'logo';
+      img.onerror = wordmark;
+      img.onload = function () { box.hidden = false; };
+      img.src = CFG.logo;
+      box.appendChild(img);
+    } else wordmark();
+  })();
+
   var prev = new Date(); prev.setDate(1); prev.setMonth(prev.getMonth() - 1);
   $('month').value = params.get('month') || (prev.getFullYear() + '-' + pad(prev.getMonth() + 1));
+  $('range').value = params.get('month') ? 'month' : (params.get('range') || EMBED.range || 'last-month');
   $('sla').value = params.get('sla') || CFG.slaTarget;
-  $('title').textContent = CFG.title.replace(/\s*NOC$/i, '') + ' – Availability Report';
+  $('title').textContent = (CFG.brandName || CFG.title.replace(/\s*NOC$/i, '')) + ' – Availability Report';
+  $('range').addEventListener('change', syncRangeInputs);
+  syncRangeInputs();
+
+  var scopeSel = $('scope');
+  if (PRESETS.length > 1) {
+    scopeSel.appendChild(new Option('All views', 'all'));
+    PRESETS.forEach(function (p) { scopeSel.appendChild(new Option(p.label || p.key, p.key)); });
+    scopeSel.value = params.get('view') || EMBED.view || 'all';
+  } else {
+    $('scope-wrap').hidden = true;
+  }
 
   $('controls').addEventListener('submit', function (e) {
     e.preventDefault();
     showError('');
+    var period;
+    try { period = getPeriod(); } catch (err) { showError(err.message); return; }
     $('go').disabled = true;
     var sla = parseFloat($('sla').value) || CFG.slaTarget;
-    run($('month').value, sla)
-      .then(function (res) { lastResult = res; render(res); })
+    run(period, sla, scopeSel.value || 'all')
+      .then(function (res) { res.slug = period.slug; lastResult = res; render(res); })
       .catch(function (err) { setProgress(''); showError(err.message || String(err)); })
       .then(function () { $('go').disabled = false; });
   });
 
   $('csv').addEventListener('click', function () {
     if (!lastResult) return;
-    var blob = new Blob(['﻿' + toCsv(lastResult)], { type: 'text/csv;charset=utf-8' });
+    var blob = new Blob(['\ufeff' + toCsv(lastResult)], { type: 'text/csv;charset=utf-8' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'availability-' + $('month').value + '.csv';
+    a.download = 'availability-' + (lastResult.slug || 'report') + '.csv';
     document.body.appendChild(a);
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);

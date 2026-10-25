@@ -13,7 +13,7 @@
 (window.NOC_PRESETS = window.NOC_PRESETS || []).push({
   key: 'voip',
   label: 'VoIP',
-  title: 'AlasilaCX VoIP',
+  title: 'VoIP',
   subtitle: 'SIP, SBC, FreeSWITCH & cloud voice',
   scope: 'panels',   // counts + alerts only for VoIP items, not the whole PRTG
   panels: [

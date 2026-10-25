@@ -11,7 +11,7 @@
 (window.NOC_PRESETS = window.NOC_PRESETS || []).push({
   key: 'noc',
   label: 'NOC',
-  title: 'AlasilaCX NOC',
+  title: 'NOC',
   subtitle: 'PRTG live status',
   panels: [
     { title: 'Critical Systems', items: [

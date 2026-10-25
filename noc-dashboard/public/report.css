@@ -29,7 +29,7 @@ body {
 
 .controls { display: flex; flex-wrap: wrap; gap: .6rem; align-items: flex-end; }
 .controls label { display: flex; flex-direction: column; font-size: .75rem; color: var(--muted); gap: .2rem; }
-.controls input { font: inherit; padding: .35rem .5rem; border: 1px solid var(--border); border-radius: 6px; }
+.controls input, .controls select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--text); }
 .controls input[type=number] { width: 6.5rem; }
 .controls button {
   font: inherit; font-weight: 600; padding: .45rem .9rem; border-radius: 6px; cursor: pointer;
@@ -104,3 +104,39 @@ td.note { color: var(--muted); font-size: .8rem; }
 table.audit { table-layout: auto; }
 table.audit th { width: auto !important; }
 table.audit td { overflow: visible; }
+
+/* ---------------------------------------------------------------- brand / logo */
+.title-block { display: flex; align-items: center; gap: 1rem; }
+.logo { display: flex; align-items: center; padding-right: 1rem; border-right: 1px solid var(--border); }
+.logo[hidden] { display: none; }
+.logo img { display: block; height: 2.4rem; width: auto; }
+.wm { font-size: 1.9rem; font-weight: 300; letter-spacing: .01em; line-height: 1; white-space: nowrap; }
+.wm-a { color: #8e8e8e; }
+.wm-b { color: #5ccbe2; font-weight: 400; }
+
+/* AlasilaCX: purple gradient #8B86B8 -> #554D93, cyan #5CCBE2, grey #8E8E8E, page #F2F3F7 */
+body.theme-alasilacx {
+  --bg: #f2f3f7;
+  --accent: #554d93;
+  --border: #e0dfee;
+  font-family: "Titillium Web", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+.theme-alasilacx .head {
+  border-bottom: 0;
+  box-shadow: inset 0 -4px 0 #5ccbe2;
+  background: linear-gradient(#fff, #fff) padding-box;
+}
+.theme-alasilacx .head h1 {
+  background: linear-gradient(90deg, #8b86b8, #554d93);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-transform: uppercase; letter-spacing: .02em;
+}
+.theme-alasilacx .controls button[type=submit] { background: linear-gradient(90deg, #8b86b8, #554d93); border-color: #554d93; }
+.theme-alasilacx .controls button[type=button] { color: #554d93; border-color: #554d93; }
+.theme-alasilacx .panel h2 {
+  background: linear-gradient(90deg, #8b86b8, #554d93); color: #fff; border-bottom: 0;
+  box-shadow: inset 5px 0 0 #5ccbe2;
+}
+.theme-alasilacx .kpi { border-top: 3px solid #8b86b8; }
+.theme-alasilacx .progress { background: #ecebf6; color: #554d93; }
+body.embedded .head { position: sticky; top: 0; z-index: 2; }
