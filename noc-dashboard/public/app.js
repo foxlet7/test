@@ -401,6 +401,7 @@
     var root = $('sections');
     var grid = el('div', 'panels');
     var shown = {}; // sensor ids represented on screen (for scope: 'panels')
+    panelInfo = { panel: {}, label: {}, cap: {} };
 
     CFG.panels.forEach(function (panel) {
       var rows = [];
@@ -416,7 +417,12 @@
           var key = h.kind + h.obj.id;
           if (seen[key]) return;
           seen[key] = true;
-          if (h.kind === 'sensor') shown[h.obj.id] = true;
+          if (h.kind === 'sensor') {
+            shown[h.obj.id] = true;
+            panelInfo.panel[h.obj.id] = panel.title;
+            if (item.label && hits.length === 1) panelInfo.label[h.obj.id] = item.label;
+            if (item.capacity) panelInfo.cap[h.obj.id] = Number(item.capacity);
+          }
           else m.sensors.forEach(function (x) { if (x.deviceId === h.obj.id) shown[x.id] = true; });
           worst = Math.min(worst, RANK[cls(h.obj.status)]);
           rows.push({ hit: h, item: item, multi: hits.length > 1 });
@@ -598,14 +604,17 @@
 
   function render() {
     var m = model(state.data);
+    var shown = null;
     if (CFG.panels && CFG.panels.length) {
-      var shown = renderPanels(m);
+      shown = renderPanels(m);
       if (CFG.scope === 'panels') scopeToPanels(m, shown);
     } else {
+      panelInfo = { panel: {}, label: {}, cap: {} };
       renderSections(m);
     }
     renderSummary(m);
     renderAlerts(m);
+    if (INSIGHTS) renderInsights(m, shown);
     fitToScreen();
     if (detail.open) updateDetail();
     document.title = (m.totals.down ? '(' + m.totals.down + ' DOWN) ' : '') + CFG.title;
@@ -672,6 +681,219 @@
       });
   }
 
+  // ------------------------------------------------------------------ insights strip
+  // Live analysis of every bandwidth sensor on the screen, from the values
+  // already polled. A rolling history (up to 6 h) is kept in this browser so
+  // trends survive the periodic page reload.
+  var panelInfo = { panel: {}, label: {}, cap: {} };
+  var INSIGHTS = params.get('insights') !== '0' && CFG.insights !== false;
+  var HIST_KEY = 'noc-hist:' + location.pathname;
+  var HIST_MAX_MS = 6 * 3600 * 1000;
+  var hist = (function () {
+    try { return JSON.parse(localStorage.getItem(HIST_KEY)) || {}; } catch (e) { return {}; }
+  })();
+  var lastSampleAt = 0;
+
+  // "1,234.5 kbit/s" / "151 Mbit/s" / "2 MByte/s" -> Mbit/s; null if not a bandwidth value
+  function parseMbps(str) {
+    var m = /([\d.,]+)\s*([kmgt]?)(bit|byte|b)\/s/i.exec(String(str || ''));
+    if (!m) return null;
+    var numStr = m[1];
+    if (numStr.indexOf('.') >= 0 && numStr.indexOf(',') >= 0) numStr = numStr.replace(/,/g, '');
+    else if (/,\d{3}(\D|$)/.test(numStr)) numStr = numStr.replace(/,/g, '');
+    else numStr = numStr.replace(',', '.');
+    var v = parseFloat(numStr);
+    if (!isFinite(v)) return null;
+    var mult = { '': 1e-6, k: 1e-3, m: 1, g: 1e3, t: 1e6 }[m[2].toLowerCase()];
+    if (/byte/i.test(m[3]) || m[3] === 'B') mult *= 8;
+    return v * mult;
+  }
+
+  function fmtMbps(v) {
+    if (v == null) return '-';
+    if (v >= 1000) return (v / 1000).toFixed(2) + ' Gbit/s';
+    if (v >= 100) return Math.round(v) + ' Mbit/s';
+    if (v >= 1) return v.toFixed(1) + ' Mbit/s';
+    return Math.round(v * 1000) + ' kbit/s';
+  }
+
+  function linkName(s) { return panelInfo.label[s.id] || s.name; }
+
+  function sample(links) {
+    var now = Date.now();
+    if (now - lastSampleAt < 15000) return; // one sample per data refresh
+    lastSampleAt = now;
+    links.forEach(function (l) {
+      var arr = hist[l.s.id] || (hist[l.s.id] = []);
+      arr.push([now, cls(l.s.status) === 'down' ? 0 : l.mbps]);
+    });
+    Object.keys(hist).forEach(function (k) {
+      hist[k] = hist[k].filter(function (p) { return now - p[0] <= HIST_MAX_MS; });
+      if (!hist[k].length) delete hist[k];
+    });
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(hist)); } catch (e) { /* storage full/blocked: keep in memory */ }
+  }
+
+  // average over [now-fromMin, now-toMin]
+  function windowAvg(id, fromMin, toMin) {
+    var now = Date.now();
+    var pts = (hist[id] || []).filter(function (p) {
+      var age = (now - p[0]) / 60000;
+      return age <= fromMin && age >= toMin;
+    });
+    if (pts.length < 3) return null;
+    return pts.reduce(function (a, p) { return a + p[1]; }, 0) / pts.length;
+  }
+
+  function historyMinutes() {
+    var oldest = Infinity;
+    Object.keys(hist).forEach(function (k) { if (hist[k].length) oldest = Math.min(oldest, hist[k][0][0]); });
+    return isFinite(oldest) ? Math.round((Date.now() - oldest) / 60000) : 0;
+  }
+
+  function sparkline(id, w, h) {
+    var pts = (hist[id] || []).slice(-120);
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('class', 'spark');
+    if (pts.length < 2) return svg;
+    var max = Math.max.apply(null, pts.map(function (p) { return p[1]; })) || 1;
+    var d = pts.map(function (p, i) {
+      return (i ? 'L' : 'M') + (i / (pts.length - 1) * w).toFixed(1) + ' ' + (h - p[1] / max * (h - 2) - 1).toFixed(1);
+    }).join(' ');
+    var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function analyse(links, m) {
+    var f = []; // { sev 0..3, text, id }
+    var drops = [], rises = [];
+    links.forEach(function (l) {
+      var s = l.s, c = cls(s.status), name = linkName(s);
+      if (c === 'down' || c === 'ack') {
+        f.push({ sev: 0, id: s.id, text: name + ' is DOWN' + (s.downSince ? ' for ' + s.downSince : '') + (s.message ? ' — ' + s.message : '') });
+        return;
+      }
+      if (c === 'warn' || c === 'unusual') {
+        f.push({ sev: 2, id: s.id, text: name + ': ' + label(s.status).toLowerCase() + (s.message ? ' — ' + s.message : '') });
+      }
+      var cap = panelInfo.cap[s.id];
+      if (cap) {
+        var pct = l.mbps / cap * 100;
+        if (pct >= 90) f.push({ sev: 1, id: s.id, text: name + ' at ' + Math.round(pct) + '% of its ' + cap + ' Mbit/s — saturated' });
+        else if (pct >= 75) f.push({ sev: 2, id: s.id, text: name + ' at ' + Math.round(pct) + '% of its ' + cap + ' Mbit/s — approaching capacity' });
+      }
+      var base = windowAvg(s.id, 30, 3);
+      if (base != null) {
+        if (base >= 2 && l.mbps < base * 0.2) {
+          drops.push(l);
+          f.push({ sev: 1, id: s.id, text: name + ' dropped from ' + fmtMbps(base) + ' to ' + fmtMbps(l.mbps) + ' (−' + Math.round((1 - l.mbps / base) * 100) + '%) — outage or failover?' });
+        } else if (l.mbps >= 5 && l.mbps > base * 2.5) {
+          rises.push(l);
+          f.push({ sev: 2, id: s.id, text: name + ' surged to ' + fmtMbps(l.mbps) + ' (' + (l.mbps / Math.max(base, 0.001)).toFixed(1) + '× its 30-min average)' });
+        } else if (base >= 1 && l.mbps > base * 1.5) {
+          rises.push(l);
+        }
+      }
+      var zeroSince = (hist[s.id] || []).filter(function (p) { return Date.now() - p[0] <= 15 * 60000; });
+      if (l.mbps === 0 && zeroSince.length >= 10 && zeroSince.every(function (p) { return p[1] === 0; })) {
+        f.push({ sev: 3, id: s.id, text: name + ' has carried no traffic for 15+ min — idle backup or disconnected?' });
+      }
+    });
+    // a drop and a rise in the same box at the same time looks like failover
+    drops.forEach(function (d) {
+      var p = panelInfo.panel[d.s.id];
+      rises.filter(function (r) { return panelInfo.panel[r.s.id] === p && r !== d; }).forEach(function (r) {
+        f.push({ sev: 1, id: r.s.id, text: 'Traffic in ' + (p || 'this site') + ' appears to have moved from ' + linkName(d.s) + ' to ' + linkName(r.s) + ' (likely failover)' });
+      });
+    });
+    return f.sort(function (a, b) { return a.sev - b.sev; });
+  }
+
+  function renderInsights(m, shown) {
+    var box = $('insights');
+    var links = m.sensors
+      .filter(function (s) { return !shown || shown[s.id]; })
+      .map(function (s) { return { s: s, mbps: parseMbps(s.lastValue) }; })
+      .filter(function (l) { return l.mbps != null || (/traffic/i.test(l.s.name) && cls(l.s.status) === 'down'); })
+      .map(function (l) { if (l.mbps == null) l.mbps = 0; return l; });
+    if (!links.length) { box.hidden = true; return; }
+    sample(links);
+    box.hidden = false;
+    box.textContent = '';
+
+    var total = links.reduce(function (a, l) { return a + l.mbps; }, 0);
+    var up = links.filter(function (l) { return cls(l.s.status) !== 'down' && cls(l.s.status) !== 'ack'; }).length;
+
+    // 1. throughput now, per box
+    var c1 = el('div', 'ins-card');
+    c1.appendChild(el('h3', null, 'Throughput now'));
+    c1.appendChild(el('div', 'ins-big', fmtMbps(total)));
+    c1.appendChild(el('div', 'ins-sub', up + ' of ' + links.length + ' links up'));
+    var byPanel = {};
+    links.forEach(function (l) {
+      var p = panelInfo.panel[l.s.id] || l.s.group || 'Other';
+      byPanel[p] = (byPanel[p] || 0) + l.mbps;
+    });
+    var maxP = Math.max.apply(null, Object.keys(byPanel).map(function (k) { return byPanel[k]; })) || 1;
+    var bars = el('div', 'ins-bars');
+    Object.keys(byPanel).sort(function (a, b) { return byPanel[b] - byPanel[a]; }).forEach(function (k) {
+      var row = el('div', 'ins-bar');
+      row.appendChild(el('span', 'k', k));
+      var track = el('span', 'track');
+      var fill = el('span', 'fill');
+      fill.style.width = Math.max(2, byPanel[k] / maxP * 100) + '%';
+      track.appendChild(fill);
+      row.appendChild(track);
+      row.appendChild(el('span', 'v', fmtMbps(byPanel[k])));
+      bars.appendChild(row);
+    });
+    c1.appendChild(bars);
+    box.appendChild(c1);
+
+    // 2. busiest links with trend
+    var c2 = el('div', 'ins-card');
+    c2.appendChild(el('h3', null, 'Busiest links'));
+    var list = el('ol', 'ins-top');
+    links.slice().sort(function (a, b) { return b.mbps - a.mbps; }).slice(0, CFG.insightsTopN || 5).forEach(function (l) {
+      var li = el('li', 'clickable s-' + cls(l.s.status));
+      clickable(li, 'sensor', l.s.id);
+      var nm = el('span', 'k', linkName(l.s));
+      li.appendChild(nm);
+      li.appendChild(sparkline(l.s.id, 80, 18));
+      var cap = panelInfo.cap[l.s.id];
+      li.appendChild(el('span', 'v', fmtMbps(l.mbps) + (cap ? ' · ' + Math.round(l.mbps / cap * 100) + '%' : '')));
+      list.appendChild(li);
+    });
+    c2.appendChild(list);
+    box.appendChild(c2);
+
+    // 3. findings
+    var c3 = el('div', 'ins-card ins-findings');
+    var mins = historyMinutes();
+    var head = el('h3', null, 'Findings');
+    head.appendChild(el('span', 'ins-note', mins < 10 ? 'learning baseline · ' + mins + ' min of history' : 'based on ' + (mins >= 120 ? Math.round(mins / 60) + ' h' : mins + ' min') + ' of history'));
+    c3.appendChild(head);
+    var findings = analyse(links, m);
+    var ul = el('ul', 'ins-list');
+    if (!findings.length) {
+      ul.appendChild(el('li', 'ok', '✓ All ' + links.length + ' links look normal — no drops, surges or saturation detected'));
+    }
+    findings.slice(0, CFG.insightsMax || 6).forEach(function (x) {
+      var li = el('li', 'sev' + x.sev + ' clickable');
+      clickable(li, 'sensor', x.id);
+      li.appendChild(el('span', 'pip'));
+      li.appendChild(el('span', 't', x.text));
+      ul.appendChild(li);
+    });
+    if (findings.length > (CFG.insightsMax || 6)) ul.appendChild(el('li', 'more', '+' + (findings.length - (CFG.insightsMax || 6)) + ' more'));
+    c3.appendChild(ul);
+    box.appendChild(c3);
+  }
+
   // ------------------------------------------------------------------ detail panel (click a row)
   // Shows PRTG's own graph for the sensor (chart.svg, falling back to
   // chart.png) with Live / 2 days / 30 days / 365 days tabs.
@@ -696,6 +918,7 @@
   ['click', 'keydown'].forEach(function (t) {
     $('sections').addEventListener(t, onActivate);
     $('alert-list').addEventListener(t, onActivate);
+    $('insights').addEventListener(t, onActivate);
   });
 
   function findSensor(id) {

@@ -4,6 +4,7 @@
  * Items:  { id: 1234, label: '...' }    -> PRTG object ID (device or sensor) - most reliable
  *         { device: 'name' }            -> device by name (case/space-insensitive substring)
  *         { sensor: 'exact name' }      -> sensor by name (+ device: '...' to disambiguate)
+ *         capacity: 200                 -> circuit size in Mbit/s, enables utilisation % in Insights
  * Rows that don't resolve show as "not found" (wrong ID or the PRTG user can't see it).
  */
 Object.assign(window.NOC_CONFIG, {
@@ -32,7 +33,7 @@ Object.assign(window.NOC_CONFIG, {
       { id: 2972, label: '(020) AlasilaHQ-2' },
     ] },
     { title: 'HQ Links', items: [
-      { id: 2877, label: '(054) STC-120MB-DIA-12128' },
+      { id: 2877, label: '(054) STC-120MB-DIA-12128', capacity: 120 },   // Mbit/s, from the circuit name
       { id: 3118, label: '(017) Main200' },
       { id: 3145, label: '(016) STCS-100' },
       { id: 2844, label: '(058) Alibaba' },
