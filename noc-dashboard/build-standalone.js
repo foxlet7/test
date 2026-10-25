@@ -32,6 +32,10 @@ const config = pub('config.js').replace(
 const argv = process.argv.slice(2);
 const pageIdx = argv.indexOf('--page');
 const page = pageIdx >= 0 ? argv.splice(pageIdx, 2)[1] : 'index.html';
+// --no-report: don't embed the report; the Reports button then opens noc-uptime.htm
+const noReportIdx = argv.indexOf('--no-report');
+const embedReport = noReportIdx < 0;
+if (!embedReport) argv.splice(noReportIdx, 1);
 
 // Optional overlays (brand, site layouts, secrets) applied after config.js:
 //   node build-standalone.js sites/asl-brand.js sites/asl-noc.js sites/asl-voip.js local/secrets.js -o local/noc.htm
@@ -60,13 +64,20 @@ function build(pageFile) {
 }
 
 let html = build(page);
-if (page === 'index.html') {
+if (page === 'index.html' && embedReport) {
   // base64 keeps the embedded page inert inside the dashboard's HTML
-  const report = Buffer.from(build('report.html'), 'utf8').toString('base64');
+  // Short lines: PRTG runs webroot .htm files through its template parser,
+  // which fails ("EParserError") on very long lines. atob() ignores the newlines.
+  const report = Buffer.from(build('report.html'), 'utf8').toString('base64').replace(/.{1,76}/g, '$&\n');
   html = html.replace('<template id="report-src"></template>',
     () => '<script type="text/plain" id="report-src">' + report + '</script>');
   if (!html.includes('id="report-src">')) throw new Error('report not embedded');
 }
+
+// PRTG's template parser rejects very long lines - fail the build instead of the page.
+const longest = html.split('\n').reduce((m, l) => Math.max(m, l.length), 0);
+if (longest > 2000) throw new Error('line of ' + longest + ' chars - PRTG webroot pages need short lines');
+if (/<#|#>/.test(html)) throw new Error('contains PRTG template markers (<# or #>)');
 
 fs.mkdirSync(path.dirname(path.resolve(__dirname, out)), { recursive: true });
 fs.writeFileSync(path.resolve(__dirname, out), html);

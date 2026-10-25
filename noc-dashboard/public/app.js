@@ -1356,7 +1356,7 @@
     var src = document.getElementById('report-src');
     var frame = $('reports-frame');
     if (src && src.textContent.trim()) {
-      var bytes = Uint8Array.from(atob(src.textContent.trim()), function (c) { return c.charCodeAt(0); });
+      var bytes = Uint8Array.from(atob(src.textContent.replace(/\s+/g, '')), function (c) { return c.charCodeAt(0); });
       var opts = JSON.stringify({ embedded: true, view: PRESETS.length > 1 ? view : 'all' }).replace(/</g, '\\u003c');
       frame.srcdoc = new TextDecoder('utf-8').decode(bytes)
         .replace('<head>', function () { return '<head><script>window.NOC_EMBED = ' + opts + ';<\/script>'; });
