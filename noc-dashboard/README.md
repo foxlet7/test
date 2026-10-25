@@ -51,8 +51,9 @@ used until the logo file exists. Load it before the view files. Status colours s
 
 ## Reports from the dashboard
 
-The dashboard build embeds the availability report. **Reports** (or the **R** key) opens it in the same
-window: Last week / This week / Last 7 days / Last month / This month / a chosen month / custom dates,
+**Reports** (or the **R** key) opens `noc-uptime.htm` in an overlay in the same window, so copy that file
+next to the dashboard. (`--embed-report` packs it into the dashboard instead, but PRTG's webroot template
+parser rejects the resulting ~150 KB file; ~100 KB is known to work.) The report offers Last week / This week / Last 7 days / Last month / This month / a chosen month / custom dates,
 for the current view or all views, with CSV export and Print / PDF. Weeks start on `weekStartsOn`
 (0 = Sunday). Periods up to 8 days use hourly history, longer ones daily.
 

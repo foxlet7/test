@@ -32,10 +32,14 @@ const config = pub('config.js').replace(
 const argv = process.argv.slice(2);
 const pageIdx = argv.indexOf('--page');
 const page = pageIdx >= 0 ? argv.splice(pageIdx, 2)[1] : 'index.html';
-// --no-report: don't embed the report; the Reports button then opens noc-uptime.htm
-const noReportIdx = argv.indexOf('--no-report');
-const embedReport = noReportIdx < 0;
-if (!embedReport) argv.splice(noReportIdx, 1);
+// By default the Reports button opens noc-uptime.htm (copy it next to the page).
+// --embed-report packs the report into the dashboard instead - but PRTG's webroot
+// template parser rejects large files (~150 KB failed, ~100 KB works), so it's off.
+const embedIdx = argv.indexOf('--embed-report');
+const embedReport = embedIdx >= 0;
+if (embedReport) argv.splice(embedIdx, 1);
+const nrIdx = argv.indexOf('--no-report'); // old flag, now the default
+if (nrIdx >= 0) argv.splice(nrIdx, 1);
 
 // Optional overlays (brand, site layouts, secrets) applied after config.js:
 //   node build-standalone.js sites/asl-brand.js sites/asl-noc.js sites/asl-voip.js local/secrets.js -o local/noc.htm
@@ -78,6 +82,7 @@ if (page === 'index.html' && embedReport) {
 const longest = html.split('\n').reduce((m, l) => Math.max(m, l.length), 0);
 if (longest > 2000) throw new Error('line of ' + longest + ' chars - PRTG webroot pages need short lines');
 if (/<#|#>/.test(html)) throw new Error('contains PRTG template markers (<# or #>)');
+if (html.length > 110000) console.warn('WARNING: ' + html.length + ' bytes - PRTG webroot may reject pages this large (~100 KB is known to work)');
 
 fs.mkdirSync(path.dirname(path.resolve(__dirname, out)), { recursive: true });
 fs.writeFileSync(path.resolve(__dirname, out), html);
