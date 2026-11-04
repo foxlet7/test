@@ -133,15 +133,40 @@
         if (it.tag && tags.indexOf(String(it.tag).toLowerCase()) < 0) tags.push(String(it.tag).toLowerCase());
       });
     });
-    return Promise.all([
-      api('/api/table.json?content=devices&output=json&count=50000&columns=objid,device,host'),
-      api('/api/table.json?content=sensors&output=json&count=50000&columns=objid,parentid,device,sensor'),
-      Promise.all(tags.map(function (t) {
-        return api('/api/table.json?content=sensors&output=json&count=50000&columns=objid&filter_tags=' + encodeURIComponent('@tag(' + t + ')'))
-          .then(function (r) { return [t, (r.sensors || []).map(function (x) { return Number(x.objid); })]; })
-          .catch(function () { return [t, []]; });
-      })),
-    ]).then(function (r) {
+    // One request at a time, and an empty device/sensor list is retried: PRTG sometimes
+    // answers the first request after idle with an empty table or an error.
+    function table(content, columns, extra, allowEmpty) {
+      var attempt = 0;
+      function go() {
+        return api('/api/table.json?content=' + content + '&output=json&count=50000&columns=' + columns + (extra || ''))
+          .then(function (j) {
+            var list = j && j[content];
+            if (!Array.isArray(list) || (!allowEmpty && !list.length)) throw new Error('PRTG returned an empty ' + content + ' list');
+            return j;
+          })
+          .catch(function (err) {
+            if (/refused the request/.test(err.message) || attempt >= 3) throw err;
+            attempt += 1;
+            setProgress('PRTG did not return the ' + content + ' list yet - retrying (' + attempt + '/3)…');
+            return sleep(2000 * attempt).then(go);
+          });
+      }
+      return go();
+    }
+    var r = [];
+    return table('devices', 'objid,device,host')
+      .then(function (d) { r[0] = d; return table('sensors', 'objid,parentid,device,sensor'); })
+      .then(function (sn) {
+        r[1] = sn; r[2] = [];
+        return tags.reduce(function (chain, t) {
+          return chain.then(function () {
+            return table('sensors', 'objid', '&filter_tags=' + encodeURIComponent('@tag(' + t + ')'), true)
+              .then(function (x) { r[2].push([t, (x.sensors || []).map(function (y) { return Number(y.objid); })]); })
+              .catch(function () { r[2].push([t, []]); });
+          });
+        }, Promise.resolve());
+      })
+      .then(function () {
       var tagIds = {};
       r[2].forEach(function (pair) { tagIds[pair[0]] = pair[1]; });
       return {
@@ -542,7 +567,20 @@
           .then(function () { return i < jobs.length ? sleep(CFG.historyPaceMs) : null; })
           .then(next);
       }
-      return next().then(function () {
+      // Second pass: rows that came back empty or failed (PRTG busy / warming up)
+      // are asked for again automatically, instead of the user pressing Generate twice.
+      function retryPass() {
+        var redo = jobs.filter(function (row) {
+          var r = row.result;
+          return r && r.error && !r.notMonitored && !/refused the request/.test(r.error);
+        });
+        if (!redo.length) return Promise.resolve();
+        setProgress('PRTG returned nothing for ' + redo.length + ' item(s) - waiting 5s and asking again…');
+        emptyRetried = {};
+        jobs = redo; i = 0;
+        return sleep(5000).then(next);
+      }
+      return next().then(retryPass).then(function () {
         setProgress('');
         return { panels: panels, label: label, partial: partial, start: start, end: end, sla: sla, bucket: bucket, scopeLabel: scopeLabel, profile: profile };
       });

@@ -175,17 +175,58 @@
     });
   });
 
-  function fetchDirect(signal) {
-    var tagReqs = PANEL_TAGS.map(function (t) {
-      return prtgTable('sensors', 'objid', signal, '&filter_tags=' + encodeURIComponent('@tag(' + t + ')'))
-        .then(function (r) { return [t, (r.sensors || []).map(function (s) { return Number(s.objid); })]; })
-        .catch(function () { return [t, null]; });
+  function wait(ms, signal) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(resolve, ms);
+      if (signal) signal.addEventListener('abort', function () { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')); });
     });
-    return Promise.all([
-      prtgTable('devices', DEVICE_COLS, signal),
-      prtgTable('sensors', SENSOR_COLS, signal),
-      Promise.all(tagReqs),
-    ]).then(function (res) {
+  }
+
+  // PRTG sometimes answers the first request after idle with an empty table or an
+  // error while its cache warms up. A device/sensor list can never really be empty,
+  // so treat that as a failure and ask again (3 tries, 2 s then 4 s apart).
+  function prtgTableSure(content, columns, signal, extra, allowEmpty) {
+    var attempt = 0;
+    function go() {
+      return prtgTable(content, columns, signal, extra).then(function (j) {
+        var list = j && j[content];
+        if (!Array.isArray(list) || (!allowEmpty && !list.length)) {
+          var e = new Error('PRTG returned an empty ' + content + ' list');
+          e.retryable = true;
+          throw e;
+        }
+        return j;
+      }).catch(function (err) {
+        if (err && err.name === 'AbortError') throw err;
+        if (/refused the request|login page/.test(err.message)) throw err; // auth problems don't fix themselves
+        if (attempt >= 2) throw err;
+        attempt += 1;
+        console.warn('[noc] ' + content + ' request failed (' + err.message + '), retry ' + attempt);
+        return wait(2000 * attempt, signal).then(go);
+      });
+    }
+    return go();
+  }
+
+  // One request at a time: PRTG handles parallel heavy table queries from one
+  // account badly (empty or partial replies), and the totals are small anyway.
+  function fetchDirect(signal) {
+    var out = {};
+    return prtgTableSure('devices', DEVICE_COLS, signal)
+      .then(function (d) { out.d = d; return prtgTableSure('sensors', SENSOR_COLS, signal); })
+      .then(function (sn) {
+        out.s = sn;
+        var tags = [];
+        return PANEL_TAGS.reduce(function (chain, t) {
+          return chain.then(function () {
+            return prtgTableSure('sensors', 'objid', signal, '&filter_tags=' + encodeURIComponent('@tag(' + t + ')'), true)
+              .then(function (r) { tags.push([t, (r.sensors || []).map(function (x) { return Number(x.objid); })]); })
+              .catch(function (err) { if (err && err.name === 'AbortError') throw err; tags.push([t, null]); });
+          });
+        }, Promise.resolve()).then(function () { return tags; });
+      })
+      .then(function (tags) { return [out.d, out.s, tags]; })
+      .then(function (res) {
       var tagIds = {};
       res[2].forEach(function (pair) { if (pair[1]) tagIds[pair[0]] = pair[1]; });
       return {
@@ -214,7 +255,7 @@
     if (DEMO && window.NOC_DEMO) return Promise.resolve(window.NOC_DEMO());
 
     var ctrl = new AbortController();
-    var t = setTimeout(function () { ctrl.abort(); }, 25000);
+    var t = setTimeout(function () { ctrl.abort(); }, state.lastOkAt ? 30000 : 90000);
 
     if (CFG.source === 'prtg') {
       return fetchDirect(ctrl.signal).finally(function () { clearTimeout(t); });
@@ -751,7 +792,8 @@
       })
       .finally(function () {
         tick();
-        setTimeout(cycle, Math.max(5, CFG.refreshSeconds) * 1000);
+        // until the first good load, try again after 5 s instead of a full refresh interval
+        setTimeout(cycle, (state.lastOkAt ? Math.max(5, CFG.refreshSeconds) : 5) * 1000);
       });
   }
 
