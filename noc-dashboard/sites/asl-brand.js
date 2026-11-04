@@ -10,6 +10,6 @@ Object.assign(window.NOC_CONFIG, {
   brandName: 'AlasilaCX',
   logo: 'alasilacx-logo.png',
   wordmark: ['alasila', 'cx'],
-  reportPage: 'acx-report-v3.htm',   // the Reports button opens this file. PRTG caches webroot files by name, so bump the version on updates
+  reportPage: 'acx-report-v4.htm',   // the Reports button opens this file. PRTG caches webroot files by name, so bump the version on updates
   weekStartsOn: 0,   // reports: 0 = Sunday (KSA working week), 1 = Monday
 });

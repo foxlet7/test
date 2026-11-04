@@ -17,6 +17,11 @@
     slaTarget: 99.9,
     historyRetries: 3,
     historyRetryWaitSeconds: 20,
+    historyPaceMs: 1200,          // pause between sensors - PRTG limits history requests
+    historyEmptyRetryWaitSeconds: 10,
+    // XML/CSV history on some PRTG installs queues a background task instead of
+    // answering, and floods PRTG's queue. JSON only unless explicitly enabled.
+    historyFormats: ['json'],
   }, window.NOC_CONFIG || {});
 
   // Site files register views (NOC, VoIP, ...). The report covers one view or all.
@@ -225,7 +230,8 @@
   // per row into JSON (no Downtime); XML and CSV carry every channel by name.
   // Try JSON -> XML -> CSV on the first sensor and stick with what works.
   var HIST_FORMAT = null;
-  var FORMATS = ['json', 'xml', 'csv'];
+  var FORMATS = (CFG.historyFormats && CFG.historyFormats.length ? CFG.historyFormats : ['json']);
+  var usedSingleValue = false;
 
   function histPath(fmt, id, start, end, bucket) {
     return '/api/historicdata.' + fmt + '?id=' + id + '&avg=' + bucket +
@@ -267,6 +273,14 @@
           if (downKey) {
             down = parsePct(r[downKey]);
             if (down == null) down = rawPct(r[downKey + '(RAW)']);
+          } else if (r.value != null && !Array.isArray(r.value) && typeof r.value !== 'object') {
+            // One value per row: PRTG's JSON keeps only the LAST channel of the
+            // row, which is Downtime (a percentage). Accept it only if it is a %.
+            if (/%\s*$/.test(String(r.value))) {
+              down = parsePct(r.value);
+              if (down == null) down = rawPct(r.value_raw);
+              if (down != null) usedSingleValue = true;
+            }
           } else if (Array.isArray(r.value)) {
             var e = r.value.filter(function (x) { return x && isDownName(x.channel || x.name, x.channelid); })[0];
             if (e) down = parsePct(e.text != null ? e.text : e.value);
@@ -349,6 +363,7 @@
     return out;
   }
 
+  var emptyRetried = {};
   function history(sensorId, start, end, bucket) {
     if (DEMO) return Promise.resolve(window.NOC_REPORT_DEMO.history(sensorId, start, end));
     var order = HIST_FORMAT ? [HIST_FORMAT] : FORMATS;
@@ -361,6 +376,14 @@
         .then(function (text) {
           var parsed;
           try { parsed = PARSERS[fmt](text); } catch (e) { parsed = { rows: [], info: fmt.toUpperCase() + ': unreadable (' + e.message + ')' }; }
+          if (!parsed.rows.length && !emptyRetried[sensorId]) {
+            // PRTG answers with no rows when it is busy: wait and ask once more
+            emptyRetried[sensorId] = true;
+            i--;
+            setProgress('PRTG returned no history rows - waiting ' + CFG.historyEmptyRetryWaitSeconds + 's and asking again…');
+            return sleep(CFG.historyEmptyRetryWaitSeconds * 1000).then(next);
+          }
+          if (!parsed.rows.length) return { rows: [], info: 'empty' }; // still nothing after the retry
           if (parsed.rows.some(function (r) { return r.down != null; })) {
             HIST_FORMAT = fmt;
             parsed.format = fmt;
@@ -382,7 +405,7 @@
     var SLOT = bucket || DAY;
     if (h.noDowntime) return { error: 'PRTG history has no Downtime values — ' + h.info };
     var rows = h.rows || [];
-    if (!rows.length) return { error: 'no history for this period' };
+    if (!rows.length) return { error: 'PRTG returned no history for this period (sensor new or paused in that period, or PRTG busy - try again)' };
     var monitored = 0, down = 0;
     rows.forEach(function (r) {
       var cov = r.cov == null || !isFinite(r.cov) ? 100 : r.cov;
@@ -428,6 +451,8 @@
 
   // ------------------------------------------------------------------ main
   function run(period, sla, scope) {
+    emptyRetried = {};
+    usedSingleValue = false;
     var start = period.start, end = period.end, label = period.label;
     var now = new Date();
     var partial = end > now;
@@ -468,6 +493,7 @@
         return history(row.sensor.id, start, end, bucket)
           .then(function (h) { row.result = availability(h, bucket); })
           .catch(function (e) { row.result = { error: e.message }; })
+          .then(function () { return i < jobs.length ? sleep(CFG.historyPaceMs) : null; })
           .then(next);
       }
       return next().then(function () {
@@ -566,7 +592,7 @@
 
     var foot = $('foot');
     foot.hidden = false;
-    foot.textContent = 'Source: PRTG historic data (' + (res.bucket === 3600 ? 'hourly' : 'daily') + ' averages' + (HIST_FORMAT ? ', ' + HIST_FORMAT.toUpperCase() : '') + '), ' + res.start.toLocaleString() + ' – ' + res.end.toLocaleString() +
+    foot.textContent = 'Source: PRTG historic data (' + (res.bucket === 3600 ? 'hourly' : 'daily') + ' averages' + (HIST_FORMAT ? ', ' + HIST_FORMAT.toUpperCase() : '') + (usedSingleValue ? ', Downtime = per-row value' : '') + '), ' + res.start.toLocaleString() + ' – ' + res.end.toLocaleString() +
       '. Availability = 100% − PRTG "Downtime", over the time each sensor was actually monitored (paused time excluded). ' +
       'Devices are measured by their Ping sensor. Generated ' + new Date().toLocaleString() + (DEMO ? ' · DEMO DATA' : '') + '.' +
       (window.NOC_BUILD ? ' Report build ' + window.NOC_BUILD + '.' : '');
