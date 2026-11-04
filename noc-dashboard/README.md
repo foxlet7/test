@@ -55,7 +55,7 @@ used until the logo file exists. Load it before the view files. Status colours s
 next to the dashboard. (`--embed-report` packs it into the dashboard instead, but PRTG's webroot template
 parser rejects the resulting ~150 KB file; ~100 KB is known to work.) The report offers Last week / This week / Last 7 days / Last month / This month / a chosen month / custom dates,
 for the current view or all views, with CSV export and Print / PDF. Weeks start on `weekStartsOn`
-(0 = Sunday). Periods up to 8 days use hourly history, longer ones daily.
+(0 = Sunday). Periods up to 8 days use hourly history (up to 35 days for a management profile), longer ones daily.
 
 ## Monthly availability report
 
@@ -64,6 +64,26 @@ reports availability for every item on the dashboard for a chosen month, using P
 (daily averages of each sensor's `Downtime` and coverage). Copy it next to the dashboard in webroot,
 pick a month, press Generate, then Export CSV or Print / PDF. Devices are measured by their Ping sensor.
 History is requested one sensor at a time and retried automatically if PRTG throttles it.
+
+### Management report profiles
+
+A profile file (e.g. `sites/asl-report.js`, built into the report page) adds an entry such as
+**Monthly management report** to the *Covering* list. It defines its own service groups (HQ Internet & WAN,
+key tunnels, Laban, AL-ULA, ...), independent of the dashboard boxes, with the usual item rules.
+Selecting it produces:
+
+- an executive summary paragraph (**Copy summary** puts it on the clipboard for an email or a Word report);
+- a group table: time-weighted availability, lowest service, downtime, and how many services met the target;
+- the detail tables per group;
+- an outage log with start time and duration (hourly resolution, for periods up to 35 days);
+- observations, e.g. several sensors on one device with the same outage at the same time (device / SNMP
+  rather than the carrier).
+
+A sensor listed in two groups is read once and counted once in the headline figures. Print / PDF puts
+the outage log on its own page.
+
+Traffic-sensor downtime means PRTG could not read the interface (device, SNMP or probe), which is not
+the carrier's SLA. Use gateway ping sensors for carrier availability.
 
 ## Server install: Node backend (API key kept off the screen)
 

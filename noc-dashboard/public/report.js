@@ -27,7 +27,15 @@
   // Site files register views (NOC, VoIP, ...). The report covers one view or all.
   var PRESETS = window.NOC_PRESETS || [];
   var OWN_PANELS = (CFG.panels || []).slice();
+  // Report profiles: groups defined for management reporting, independent of the
+  // dashboard boxes. Registered with (window.NOC_REPORT_PROFILES ||= []).push({...}).
+  var PROFILES = window.NOC_REPORT_PROFILES || [];
+  function profileFor(scope) {
+    return PROFILES.filter(function (p) { return 'profile:' + p.key === scope; })[0] || null;
+  }
   function panelsFor(scope) {
+    var prof = profileFor(scope);
+    if (prof) return (prof.groups || []).slice();
     if (!PRESETS.length) return OWN_PANELS;
     var list = scope && scope !== 'all' ? PRESETS.filter(function (p) { return p.key === scope; }) : PRESETS;
     return list.reduce(function (a, p) {
@@ -267,9 +275,9 @@
         Object.keys(r).forEach(function (k) { if (!downKey && /^downtime(\s*\(%\))?$/i.test(k.trim())) downKey = k; });
         if (Array.isArray(r.value)) r.value.forEach(function (x) { if (x) chans[String(x.channel || x.name || x.channelid)] = true; });
       });
-      return {
+      var out = {
         rows: rows.map(function (r) {
-          var down = null;
+          var down = null, rawDown = null;
           if (downKey) {
             down = parsePct(r[downKey]);
             if (down == null) down = rawPct(r[downKey + '(RAW)']);
@@ -278,7 +286,8 @@
             // row, which is Downtime (a percentage). Accept it only if it is a %.
             if (/%\s*$/.test(String(r.value))) {
               down = parsePct(r.value);
-              if (down == null) down = rawPct(r.value_raw);
+              var rv = parseFloat(r.value_raw);
+              if (isFinite(rv)) rawDown = rv;
               if (down != null) usedSingleValue = true;
             }
           } else if (Array.isArray(r.value)) {
@@ -291,11 +300,24 @@
           }
           var cov = parsePct(r.coverage);
           if (cov == null && r.coverage_raw != null) cov = Number(r.coverage_raw) / 100;
-          return { cov: cov, down: down };
+          return { cov: cov, down: down, rawDown: rawDown, t: parseFloat(r.datetime_raw) };
         }),
         info: 'JSON: ' + (Object.keys(chans).length ? 'channels ' + Object.keys(chans).join(', ')
           : 'one value per row, e.g. ' + JSON.stringify(rows[0] || {}).slice(0, 140)),
       };
+      // The formatted value ("0 %") may be rounded; the raw value is exact but its
+      // unit isn't documented. Find the scale from a row where both are > 0 and use
+      // raw only if they differ by a clean power of ten (1, 100, 0.01, ...).
+      var pair = out.rows.filter(function (x) { return x.down > 0 && x.rawDown > 0; })[0];
+      if (pair) {
+        var lg = Math.log10(pair.down / pair.rawDown), p10 = Math.round(lg);
+        if (Math.abs(lg - p10) < 0.05) {
+          var scale = Math.pow(10, p10);
+          out.rows.forEach(function (x) { if (x.rawDown != null && x.down != null) x.down = x.rawDown * scale; });
+          out.rawScale = scale;
+        }
+      }
+      return out;
     },
     xml: function (text) {
       var doc = new DOMParser().parseFromString(text, 'text/xml');
@@ -384,6 +406,9 @@
             return sleep(CFG.historyEmptyRetryWaitSeconds * 1000).then(next);
           }
           if (!parsed.rows.length) return { rows: [], info: 'empty' }; // still nothing after the retry
+          if (parsed.rows.length && parsed.rows.every(function (r) { return !(r.cov > 0); })) {
+            return { rows: [], notMonitored: true };
+          }
           if (parsed.rows.some(function (r) { return r.down != null; })) {
             HIST_FORMAT = fmt;
             parsed.format = fmt;
@@ -403,22 +428,31 @@
 
   function availability(h, bucket) {
     var SLOT = bucket || DAY;
+    if (h.notMonitored) return { error: 'Not monitored in this period (sensor created after it, or paused throughout)', notMonitored: true };
     if (h.noDowntime) return { error: 'PRTG history has no Downtime values — ' + h.info };
     var rows = h.rows || [];
     if (!rows.length) return { error: 'PRTG returned no history for this period (sensor new or paused in that period, or PRTG busy - try again)' };
-    var monitored = 0, down = 0;
-    rows.forEach(function (r) {
+    var monitored = 0, down = 0, outages = [], cur = null;
+    rows.forEach(function (r, idx) {
       var cov = r.cov == null || !isFinite(r.cov) ? 100 : r.cov;
       var dt = r.down == null ? 0 : r.down;
       var secs = SLOT * Math.min(Math.max(cov, 0), 100) / 100;
+      var d = secs * Math.min(Math.max(dt, 0), 100) / 100;
       monitored += secs;
-      down += secs * Math.min(Math.max(dt, 0), 100) / 100;
+      down += d;
+      // consecutive buckets with downtime = one outage (times need datetime_raw)
+      if (d > 0 && isFinite(r.t)) {
+        if (cur && cur.lastIdx === idx - 1) { cur.secs += d; cur.lastIdx = idx; cur.endT = r.t + SLOT / 86400; }
+        else { cur = { startT: r.t, endT: r.t + SLOT / 86400, secs: d, lastIdx: idx }; outages.push(cur); }
+      }
     });
     var periodSecs = rows.length * SLOT;
     return {
       uptime: monitored > 0 ? 100 * (1 - down / monitored) : null,
       downSecs: down,
       coverage: periodSecs > 0 ? 100 * monitored / periodSecs : 0,
+      monitoredSecs: monitored,
+      outages: outages,
     };
   }
 
@@ -459,25 +493,36 @@
     if (partial) end = now;
     if (end <= start) return Promise.reject(new Error('That period has not started yet.'));
     // hourly buckets for short periods (weekly reports), daily for longer ones
-    var bucket = (end - start) <= 8 * DAY * 1000 ? 3600 : DAY;
+    var profile = profileFor(scope);
+    // hourly buckets for weeks, and for management reports up to ~a month (outage log
+    // with times); daily for longer periods
+    var bucket = (end - start) <= (profile ? 35 : 8) * DAY * 1000 ? 3600 : DAY;
 
-    var scopeLabel = scope && scope !== 'all' && PRESETS.length > 1
-      ? ' · ' + ((PRESETS.filter(function (p) { return p.key === scope; })[0] || {}).label || scope) : '';
+    var scopeLabel = profile ? ' · ' + (profile.label || profile.key)
+      : scope && scope !== 'all' && PRESETS.length > 1
+        ? ' · ' + ((PRESETS.filter(function (p) { return p.key === scope; })[0] || {}).label || scope) : '';
     $('period').textContent = label + (partial ? ' (to date)' : '') + scopeLabel + ' · SLA target ' + sla + '%';
     CFG.panels = panelsFor(scope);
 
     setProgress('Loading PRTG inventory…');
     return loadInventory().then(function (inv) {
-      var jobs = [];
+      var jobs = [], jobBySensor = {};
       var panels = (CFG.panels || []).map(function (p) {
-        var rows = [];
+        var rows = [], inPanel = {};
         (p.items || []).forEach(function (item) {
-          var hits = resolve(item, inv);
+          // a pattern item must not repeat a sensor already listed in this group
+          var hits = resolve(item, inv).filter(function (h) {
+            if (!h.sensor) return true;
+            if (inPanel[h.sensor.id]) return false;
+            inPanel[h.sensor.id] = true;
+            return true;
+          });
           if (!hits.length && !item.optional) rows.push({ item: item, missing: 'not found in PRTG' });
           hits.forEach(function (h) {
             var row = { item: item, device: h.device, sensor: h.sensor, isDevice: h.isDevice, multi: hits.length > 1 };
             if (!h.sensor) row.missing = 'device has no sensors';
-            else jobs.push(row);
+            else if (jobBySensor[h.sensor.id]) jobBySensor[h.sensor.id].twins.push(row);
+            else { row.twins = []; jobBySensor[h.sensor.id] = row; jobs.push(row); }
             rows.push(row);
           });
         });
@@ -493,12 +538,13 @@
         return history(row.sensor.id, start, end, bucket)
           .then(function (h) { row.result = availability(h, bucket); })
           .catch(function (e) { row.result = { error: e.message }; })
+          .then(function () { row.twins.forEach(function (t) { t.result = row.result; }); })
           .then(function () { return i < jobs.length ? sleep(CFG.historyPaceMs) : null; })
           .then(next);
       }
       return next().then(function () {
         setProgress('');
-        return { panels: panels, label: label, partial: partial, start: start, end: end, sla: sla, bucket: bucket, scopeLabel: scopeLabel };
+        return { panels: panels, label: label, partial: partial, start: start, end: end, sla: sla, bucket: bucket, scopeLabel: scopeLabel, profile: profile };
       });
     });
   }
@@ -506,13 +552,24 @@
   function render(res) {
     var all = [];
     res.panels.forEach(function (p) { p.rows.forEach(function (r) { all.push(r); }); });
-    var measured = all.filter(function (r) { return r.result && r.result.uptime != null; });
+    // a sensor listed in two groups counts once in the headline figures
+    var seenK = {};
+    var uniqueRows = all.filter(function (r) {
+      if (!r.sensor) return true;
+      if (seenK[r.sensor.id]) return false;
+      seenK[r.sensor.id] = true;
+      return true;
+    });
+    var measured = uniqueRows.filter(function (r) { return r.result && r.result.uptime != null; });
     var below = measured.filter(function (r) { return r.result.uptime < res.sla; });
     var worst = measured.slice().sort(function (a, b) { return a.result.uptime - b.result.uptime; })[0];
-    var avg = measured.length
-      ? measured.reduce(function (s, r) { return s + r.result.uptime; }, 0) / measured.length : null;
+    // time-weighted: total downtime / total monitored time (same as the management summary)
+    var monAll = measured.reduce(function (s, r) { return s + (r.result.monitoredSecs || 0); }, 0);
+    var avg = !measured.length ? null : monAll > 0
+      ? 100 * (1 - measured.reduce(function (s, r) { return s + r.result.downSecs; }, 0) / monAll)
+      : measured.reduce(function (s, r) { return s + r.result.uptime; }, 0) / measured.length;
     var totalDown = measured.reduce(function (s, r) { return s + r.result.downSecs; }, 0);
-    var failed = all.length - measured.length;
+    var failed = uniqueRows.length - measured.length;
 
     var k = $('kpis');
     k.textContent = '';
@@ -524,7 +581,7 @@
     }
     kpi(fmtPct(avg), 'Average availability', grade(avg, res.sla));
     kpi(String(below.length) + ' / ' + measured.length, 'Below SLA (' + res.sla + '%)', below.length ? 'bad' : 'good');
-    kpi(fmtDur(totalDown), 'Total downtime (all items)');
+    kpi(fmtDur(totalDown), 'Total downtime (all services)');
     kpi(worst ? fmtPct(worst.result.uptime) : 'n/a', 'Lowest: ' + (worst ? (worst.item.label || worst.sensor.name) : '-'), worst ? grade(worst.result.uptime, res.sla) : '');
     if (failed) kpi(String(failed), 'Items without data', 'warn');
     k.hidden = false;
@@ -536,6 +593,73 @@
       if (msg && !(r.result && r.result.uptime != null)) reasons[msg] = (reasons[msg] || 0) + 1;
     });
     var rk = Object.keys(reasons).sort(function (a, b) { return reasons[b] - reasons[a]; });
+    // Same downtime on several sensors of one device = one common cause (the
+    // device itself, SNMP or probe reachability) rather than each circuit.
+    var byDev = {};
+    all.forEach(function (r) {
+      if (r.result && r.result.downSecs >= 60 && r.sensor) (byDev[r.device] = byDev[r.device] || []).push(r);
+    });
+    var obs = [];
+    var seenObs = {};
+    Object.keys(byDev).forEach(function (dev) {
+      var g = byDev[dev].filter(function (r) { // one entry per sensor
+        if (seenObs[r.sensor.id]) return false;
+        seenObs[r.sensor.id] = true;
+        return true;
+      }).sort(function (a, b) { return a.result.downSecs - b.result.downSecs; });
+      // with timestamps (JSON rows): same device + same start bucket + similar length = one event
+      var byStart = {}, timed = false;
+      g.forEach(function (r) {
+        (r.result.outages || []).forEach(function (o) {
+          if (o.secs < 60) return;
+          timed = true;
+          var k = o.startT.toFixed(4);
+          (byStart[k] = byStart[k] || []).push({ r: r, secs: o.secs, startT: o.startT });
+        });
+      });
+      if (timed) {
+        Object.keys(byStart).forEach(function (k) {
+          var ev = byStart[k].sort(function (a, b) { return a.secs - b.secs; });
+          var a = 0;
+          while (a < ev.length) {
+            var z = a;
+            while (z + 1 < ev.length && ev[z + 1].secs - ev[a].secs <= 120) z++;
+            var cl = ev.slice(a, z + 1);
+            if (cl.length >= 3) {
+              var m = Math.round(cl[0].secs / 60), when = oleText(cl[0].startT, true);
+              cl.forEach(function (e) {
+                e.r.result.note = 'Shared event ' + when + ' (' + cl.length + ' sensors on ' + dev + ') - device/SNMP, not this circuit';
+              });
+              obs.push(cl.length + ' sensors on ' + dev + ' (' + cl.map(function (e) { return e.r.item.label || e.r.sensor.name; }).join(', ') +
+                ') show the same ~' + m + ' min outage around ' + when + ': most likely one common cause (the device itself, SNMP or probe reachability) ' +
+                'rather than ' + cl.length + ' separate circuit failures. Traffic-sensor downtime means PRTG could not read the interface - use the gateway pings for carrier SLA.');
+            }
+            a = z + 1;
+          }
+        });
+        return;
+      }
+      var i = 0;
+      while (i < g.length) {
+        var j = i;
+        while (j + 1 < g.length && (g[j + 1].result.downSecs - g[i].result.downSecs) <= 120) j++;
+        var cl = g.slice(i, j + 1);
+        if (cl.length >= 3) {
+          var m = Math.round(cl[0].result.downSecs / 60);
+          cl.forEach(function (r) {
+            r.result.note = 'Shared ~' + m + ' min event (' + cl.length + ' sensors on ' + dev + ') - device/SNMP, not this circuit';
+          });
+          obs.push(cl.length + ' sensors on ' + dev + ' (' + cl.map(function (r) { return r.item.label || r.sensor.name; }).join(', ') +
+            ') show the same ~' + m + ' min outage: most likely one common cause (the device itself, SNMP or probe reachability) ' +
+            'rather than ' + cl.length + ' separate circuit failures. Traffic-sensor downtime means PRTG could not read the interface - use the gateway pings for carrier SLA.');
+        }
+        i = j + 1;
+      }
+    });
+    var nb = $('notes');
+    nb.hidden = !obs.length;
+    nb.textContent = obs.length ? 'Observations:\n' + obs.map(function (o) { return '• ' + o; }).join('\n') : '';
+
     showError(rk.length ? 'Items without data:\n' + rk.map(function (m) { return '• ' + reasons[m] + ' × ' + m; }).join('\n') : '');
 
     if (params.has('debug')) {
@@ -581,7 +705,10 @@
           barTd.appendChild(bar);
         }
         tr.appendChild(barTd);
-        var note = r.missing || res1.error || (res1.coverage != null && res1.coverage < 95 ? 'monitored only ' + Math.round(res1.coverage) + '% of the period' : '');
+        var note = r.missing || res1.error || [
+          res1.coverage != null && res1.coverage < 95 ? 'monitored only ' + Math.round(res1.coverage) + '% of the period' : '',
+          res1.note || '',
+        ].filter(Boolean).join(' · ');
         tr.appendChild(el('td', 'note', note));
         tb.appendChild(tr);
       });
@@ -589,6 +716,8 @@
       box.appendChild(t);
       root.appendChild(box);
     });
+
+    renderManagement(res, all, obs);
 
     var foot = $('foot');
     foot.hidden = false;
@@ -600,6 +729,145 @@
     document.title = (CFG.brandName || CFG.title) + ' – Availability ' + res.label + res.scopeLabel;
     $('csv').disabled = false;
     $('print').disabled = false;
+  }
+
+  // ------------------------------------------------------------------ management report
+  // OLE automation date (PRTG datetime_raw, server-local) -> wall-clock text
+  function oleText(raw, withDate) {
+    var d = new Date(Math.round((raw - 25569) * 86400000));
+    var hh = pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+    if (!withDate) return hh;
+    var mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()];
+    return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + mon + ' ' + hh;
+  }
+
+  function groupStats(rows, sla) {
+    var m = rows.filter(function (r) { return r.result && r.result.uptime != null; });
+    var mon = 0, dn = 0;
+    m.forEach(function (r) { mon += r.result.monitoredSecs || 0; dn += r.result.downSecs || 0; });
+    var worst = m.slice().sort(function (a, b) { return a.result.uptime - b.result.uptime; })[0];
+    return {
+      count: rows.length, measured: m.length,
+      avail: mon > 0 ? 100 * (1 - dn / mon) : null,
+      downSecs: dn, worst: worst,
+      met: m.filter(function (r) { return r.result.uptime >= sla; }).length,
+    };
+  }
+
+  var summaryText = '';
+  function renderManagement(res, all, obs) {
+    var box = $('mgmt'), log = $('incidents');
+    box.textContent = ''; log.textContent = '';
+    box.hidden = log.hidden = !res.profile;
+    $('copy').hidden = !res.profile;
+    if (!res.profile) return;
+
+    // overall figures over unique sensors (a service can sit in two groups)
+    var uniq = {}, list = [];
+    all.forEach(function (r) { if (r.sensor && !uniq[r.sensor.id]) { uniq[r.sensor.id] = true; list.push(r); } });
+    var tot = groupStats(list, res.sla);
+    var notMon = list.filter(function (r) { return r.result && r.result.notMonitored; });
+
+    // outage log
+    var events = [];
+    list.forEach(function (r) {
+      ((r.result && r.result.outages) || []).forEach(function (o) {
+        if (o.secs >= 30) events.push({ r: r, o: o });
+      });
+    });
+    events.sort(function (a, b) { return a.o.startT - b.o.startT; });
+    var biggest = events.slice().sort(function (a, b) { return b.o.secs - a.o.secs; })[0];
+
+    // executive summary (plain text, also copyable)
+    var p = [];
+    p.push('During ' + res.label + (res.partial ? ' (to date)' : '') + ', ' + tot.measured + ' monitored services achieved an overall availability of ' +
+      fmtPct(tot.avail) + ' against a ' + res.sla + '% target.');
+    p.push(tot.met === tot.measured ? 'All services met the availability target.'
+      : (tot.measured - tot.met) + ' of ' + tot.measured + ' services fell below the target; the lowest was ' +
+        (tot.worst.item.label || tot.worst.sensor.name) + ' at ' + fmtPct(tot.worst.result.uptime) + '.');
+    p.push('Total recorded downtime was ' + fmtDur(tot.downSecs) + ' across ' +
+      list.filter(function (r) { return r.result && r.result.downSecs >= 30; }).length + ' services' +
+      (events.length ? ', in ' + events.length + ' outage window' + (events.length > 1 ? 's' : '') : '') + '.');
+    if (biggest) p.push('The longest event was ' + fmtDur(biggest.o.secs) + ' on ' + (biggest.r.item.label || biggest.r.sensor.name) +
+      ' starting ' + oleText(biggest.o.startT, true) + '.');
+    obs.forEach(function (o) { p.push(o.split(': most likely')[0] + ': most likely a single device- or site-level event rather than separate carrier failures.'); });
+    if (notMon.length) p.push(notMon.length + ' newly added monitor' + (notMon.length > 1 ? 's were' : ' was') + ' not yet active in this period (' +
+      notMon.map(function (r) { return r.item.label || r.sensor.name; }).join(', ') + ').');
+    summaryText = (res.profile.title || 'Availability report') + ' - ' + res.label + '\n\n' + p.join(' ');
+
+    var h = el('section', 'mg-block');
+    h.appendChild(el('h2', 'mg-title', (res.profile.title || 'Availability report') + ' — ' + res.label));
+    h.appendChild(el('h3', null, 'Executive summary'));
+    h.appendChild(el('p', 'mg-summary', p.join(' ')));
+    box.appendChild(h);
+
+    // group summary table
+    var gs = el('section', 'mg-block');
+    gs.appendChild(el('h3', null, 'Service groups'));
+    var t = el('table', 'audit mg-table');
+    var hr = el('tr');
+    ['Group', 'Services', 'Availability', 'Lowest service', 'Downtime', 'Target met'].forEach(function (x, i) { hr.appendChild(el('th', i > 0 && i !== 3 ? 'num' : null, x)); });
+    var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+    var tb = el('tbody');
+    res.panels.forEach(function (g) {
+      var st = groupStats(g.rows, res.sla);
+      var tr = el('tr');
+      tr.appendChild(el('td', 'mg-g', g.title));
+      tr.appendChild(el('td', 'num', String(st.measured) + (st.count > st.measured ? ' (+' + (st.count - st.measured) + ' n/a)' : '')));
+      tr.appendChild(el('td', 'num up ' + grade(st.avail, res.sla), fmtPct(st.avail)));
+      tr.appendChild(el('td', null, st.worst ? (st.worst.item.label || st.worst.sensor.name) + ' · ' + fmtPct(st.worst.result.uptime) : '-'));
+      tr.appendChild(el('td', 'num', fmtDur(st.downSecs)));
+      tr.appendChild(el('td', 'num ' + (st.met === st.measured ? 'ok' : 'bad'), st.measured ? st.met + ' / ' + st.measured : '-'));
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    gs.appendChild(t);
+    box.appendChild(gs);
+
+    // outage log (after the detail tables)
+    var lb = el('section', 'mg-block mg-break');
+    lb.appendChild(el('h3', null, 'Outage log'));
+    if (!events.length) {
+      lb.appendChild(el('p', 'mg-summary', res.bucket === 3600 ? 'No outages recorded in this period.' : 'Outage times need hourly data (periods up to 35 days).'));
+    } else {
+      var lt = el('table', 'audit mg-table');
+      var lh = el('tr');
+      ['When (start)', 'Service', 'Device', 'Downtime', 'Window'].forEach(function (x, i) { lh.appendChild(el('th', i === 3 ? 'num' : null, x)); });
+      var lth = el('thead'); lth.appendChild(lh); lt.appendChild(lth);
+      var lbd = el('tbody');
+      events.forEach(function (e) {
+        var tr = el('tr');
+        tr.appendChild(el('td', null, oleText(e.o.startT, true)));
+        tr.appendChild(el('td', null, e.r.item.label || e.r.sensor.name));
+        tr.appendChild(el('td', null, e.r.device || ''));
+        tr.appendChild(el('td', 'num', fmtDur(e.o.secs)));
+        tr.appendChild(el('td', null, oleText(e.o.startT, false) + ' – ' + oleText(e.o.endT, false) + (res.bucket === 3600 ? ' (hourly resolution)' : '')));
+        lbd.appendChild(tr);
+      });
+      lt.appendChild(lbd);
+      lb.appendChild(lt);
+    }
+    if (obs.length) {
+      lb.appendChild(el('h3', null, 'Observations'));
+      var ul = el('ul', 'mg-obs');
+      obs.forEach(function (o) { ul.appendChild(el('li', null, o)); });
+      lb.appendChild(ul);
+    }
+    log.appendChild(lb);
+  }
+
+  function copySummary() {
+    if (!summaryText) return;
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = summaryText; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+      ta.remove();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(summaryText).catch(fallback);
+    else fallback();
+    $('copy').textContent = 'Copied ✓';
+    setTimeout(function () { $('copy').textContent = 'Copy summary'; }, 2000);
   }
 
   function toCsv(res) {
@@ -708,6 +976,7 @@
 
   var scopeSel = $('scope');
   if (PRESETS.length > 1) {
+    PROFILES.forEach(function (p) { scopeSel.appendChild(new Option(p.label || p.key, 'profile:' + p.key)); });
     scopeSel.appendChild(new Option('All views', 'all'));
     PRESETS.forEach(function (p) { scopeSel.appendChild(new Option(p.label || p.key, p.key)); });
     scopeSel.value = params.get('view') || EMBED.view || 'all';
@@ -740,6 +1009,7 @@
   });
 
   $('print').addEventListener('click', function () { window.print(); });
+  $('copy').addEventListener('click', copySummary);
 
   if (params.has('auto') || DEMO) $('controls').requestSubmit();
   if (params.has('demo') && !DEMO) showError('Demo data is not bundled in this build.');

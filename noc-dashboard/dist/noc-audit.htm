@@ -47,7 +47,8 @@ body {
 .controls button[type=button] { background: var(--paper); color: var(--accent); }
 .controls button:disabled { opacity: .45; cursor: default; }
 
-.progress, .error { margin: 1rem 1.5rem 0; padding: .7rem 1rem; border-radius: 6px; }
+.progress, .error, .notes { margin: 1rem 1.5rem 0; padding: .7rem 1rem; border-radius: 6px; }
+.notes { background: #eef6fb; color: #0b4f6c; white-space: pre-wrap; border-left: 4px solid #5ccbe2; }
 .progress { background: #e8f1fb; color: var(--accent); }
 .error { background: #fdecea; color: var(--bad); white-space: pre-wrap; }
 [hidden] { display: none !important; }
@@ -153,6 +154,24 @@ body.embedded .head { position: sticky; top: 0; z-index: 2; }
 .debug { margin: 1rem 1.5rem 2rem; padding: 1rem; background: #1b1f27; color: #d6e2ff; border-radius: 8px;
   font: 12px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
 
+/* ---------------------------------------------------------------- management report */
+#mgmt, #incidents { margin: 0 1.5rem; }
+.mg-block { background: var(--paper); border: 1px solid var(--border); border-radius: 8px; margin-top: 1rem; padding: 1rem 1.2rem; break-inside: avoid; }
+.mg-title { margin: 0 0 .6rem; font-size: 1.3rem; }
+.mg-block h3 { margin: .2rem 0 .5rem; font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.mg-summary { margin: 0; font-size: 1rem; line-height: 1.6; }
+.mg-table td.mg-g { font-weight: 600; }
+.mg-table td.ok { color: var(--good); font-weight: 700; }
+.mg-table td.bad { color: var(--bad); font-weight: 700; }
+.mg-obs { margin: .2rem 0 0 1.1rem; padding: 0; line-height: 1.5; }
+.theme-alasilacx .mg-title { color: #554d93; }
+.theme-alasilacx .mg-block { border-top: 3px solid #8b86b8; }
+@media print {
+  #mgmt, #incidents { margin: 0; }
+  .mg-break { break-before: page; }
+  .notes, .error { display: none !important; }
+}
+
 </style>
 </head>
 <body>
@@ -239,7 +258,7 @@ window.NOC_CONFIG = {
   maxAlerts: 50,             // max rows in the alert panel
   alertStatuses: ['down', 'warn', 'unusual', 'ack'], // what counts as an alert in the right panel
 };
-window.NOC_BUILD = '2026-10-25 12:58';
+window.NOC_BUILD = '2026-11-04 09:24';
 
 </script>
   <script>

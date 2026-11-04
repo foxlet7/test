@@ -36,14 +36,18 @@
       <button type="submit" id="go">Generate</button>
       <button type="button" id="csv" disabled>Export CSV</button>
       <button type="button" id="print" disabled>Print / PDF</button>
+      <button type="button" id="copy" hidden>Copy summary</button>
     </form>
   </header>
 
   <div class="progress" id="progress" hidden></div>
   <div class="error" id="error" hidden></div>
 
+  <div class="notes" id="notes" hidden></div>
   <section class="kpis" id="kpis" hidden></section>
+  <section id="mgmt" hidden></section>
   <main id="tables"></main>
+  <section id="incidents" hidden></section>
 
   <footer class="foot" id="foot" hidden></footer>
 
