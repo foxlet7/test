@@ -360,6 +360,15 @@
   // Items: { id }, { device }, { sensor [, device] }, { tag }; add expand: true
   // to list every sensor of the matched device(s) as its own row.
   function resolveItem(item, m) {
+    // any: [itemA, itemB, ...] -> the first alternative that matches something wins
+    if (Array.isArray(item.any)) {
+      for (var ai = 0; ai < item.any.length; ai++) {
+        var alt = Object.assign({}, item.any[ai], { label: item.any[ai].label || item.label });
+        var got = resolveItem(alt, m);
+        if (got.length) return got.map(function (h) { h.item = item; return h; });
+      }
+      return [];
+    }
     var hits = resolveBase(item, m);
     if (!item.expand) return hits;
     var out = [];

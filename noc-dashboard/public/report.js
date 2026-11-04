@@ -165,6 +165,15 @@
 
   // expand: true -> every sensor of a matched device gets its own row
   function resolve(item, inv) {
+    // any: [itemA, itemB, ...] -> the first alternative that matches something wins
+    if (Array.isArray(item.any)) {
+      for (var ai = 0; ai < item.any.length; ai++) {
+        var alt = Object.assign({}, item.any[ai], { label: item.any[ai].label || item.label });
+        var got = resolve(alt, inv);
+        if (got.length) return got.map(function (h) { h.item = item; return h; });
+      }
+      return [];
+    }
     var hits = resolveBase(item, inv);
     if (!item.expand) return hits;
     var out = [];

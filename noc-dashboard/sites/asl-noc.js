@@ -47,6 +47,20 @@
       { id: 3157, label: '(001) GO-Dawiyat' },
       { id: 3159, label: '(020) LBN-KSU' },
       { id: 3160, label: '(021) Zain-Corp' },
+      // Gateway pings (added Nov 2026). Matched by name until the IDs are known:
+      // a device with that name (its sensors), else a sensor with that name.
+      { label: 'LBN-STC-RT', any: [
+        { device: '/^\\s*LBN-STC-RT\\b/', expand: true },
+        { sensor: '/^\\s*LBN-STC-RT\\b/' },
+      ] },
+      { label: 'LBN-GO-RT', any: [
+        { device: '/^\\s*LBN-GO-RT\\b/', expand: true },
+        { sensor: '/^\\s*LBN-GO-RT\\b/' },
+      ] },
+      { label: 'LBN-Tamam-STC-RT', any: [
+        { device: '/^\\s*LBN-Tamam-STC-RT\\b/', expand: true },
+        { sensor: '/^\\s*LBN-Tamam-STC-RT\\b/' },
+      ] },
     ] },
   ],
 });
