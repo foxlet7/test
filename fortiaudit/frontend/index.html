@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FortiAudit</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="nav">
+    <div class="brand"><span class="logo">◆</span> FortiAudit<small>offline · FortiOS 7.4.12</small></div>
+    <nav id="menu"></nav>
+  </aside>
+  <main>
+    <header id="top">
+      <select id="projectSel" title="Project"></select>
+      <select id="configSel" title="Configuration"></select>
+      <button id="newProject" class="ghost">New project</button>
+      <label class="btn">Import config<input id="fileIn" type="file" accept=".conf,.txt,.cfg" hidden></label>
+      <select id="roleSel" title="Role of imported file"><option value="primary">as Primary</option><option value="secondary">as Secondary (HA)</option><option value="revision">as Revision</option><option value="modified">as Modified</option></select>
+      <span id="mode" class="pill"></span>
+      <input id="search" placeholder="Search object, IP, policy ID…" autocomplete="off">
+    </header>
+    <section id="view"></section>
+  </main>
+  <aside id="drawer" class="hidden"><button id="drawerClose" class="ghost">✕</button><div id="drawerBody"></div></aside>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>
