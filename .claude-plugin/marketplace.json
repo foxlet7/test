@@ -1,0 +1,18 @@
+{
+  "name": "foxlet7-plugins",
+  "owner": {
+    "name": "foxlet7"
+  },
+  "metadata": {
+    "description": "Claude Code plugins from foxlet7/test"
+  },
+  "plugins": [
+    {
+      "name": "find-skills",
+      "source": "./plugins/find-skills",
+      "description": "Discover, vet and install agent skills from the open skills ecosystem (skills.sh / npx skills).",
+      "version": "0.1.0",
+      "category": "productivity"
+    }
+  ]
+}
