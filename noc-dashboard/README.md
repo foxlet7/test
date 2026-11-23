@@ -165,3 +165,13 @@ port, cache time, and an optional basic-auth login. See `.env.example`.
 | `GET /healthz` | Liveness check. Returns `{"ok":true,"prtgConfigured":true}`. |
 
 `deploy/test-prtg-api.ps1` checks the API key from Windows and lists your groups.
+
+## Visual design
+
+Operate-mode NOC screen, read from across a dim room:
+
+- Healthy rows are quiet (small dot, plain row); anything not up gets a full tint, the PRTG message and how long.
+- Each group header carries a **health line**: one notch per item, in row order, so a fault reads at a distance.
+- The header strip turns non-zero problem counts into solid chips; zero counts recede.
+- No side-stripe borders, nested cards or gradient text. Brand lives in the shell (purple-ink ground and header,
+  cyan for interaction, Titillium Web via `fontCss` in the brand file, which falls back to Segoe UI offline).

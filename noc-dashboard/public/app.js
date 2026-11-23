@@ -463,11 +463,13 @@
   }
 
   function deviceValue(d) {
-    var parts = [];
-    ['down', 'warn', 'unusual', 'ack', 'paused', 'up'].forEach(function (k) {
+    var total = 0, parts = [];
+    Object.keys(d.counts).forEach(function (k) { total += d.counts[k] || 0; });
+    ['down', 'warn', 'unusual', 'ack', 'paused'].forEach(function (k) {
       if (d.counts[k]) parts.push(d.counts[k] + ' ' + (k === 'warn' ? 'warning' : k));
     });
-    return parts.join(' · ') || 'no sensors';
+    if (!total) return 'no sensors';
+    return parts.length ? parts.join(' · ') + ' of ' + total : (total === 1 ? 'up' : 'all ' + total + ' up');
   }
 
   function renderPanels(m) {
@@ -506,8 +508,17 @@
       var box = el('div', 'panel s-' + worstCls);
       var head = el('div', 'section-head');
       head.appendChild(el('h2', null, panel.title));
-      head.appendChild(el('span', 'meta', rows.length + (rows.length === 1 ? ' item' : ' items')));
+      var bad = rows.filter(function (r) { return !r.missing && cls(r.hit.obj.status) !== 'up'; }).length;
+      head.appendChild(el('span', 'meta' + (bad ? ' hot s-' + worstCls : ''),
+        bad ? bad + ' ' + (bad > 1 && worstCls === 'down' ? 'down' : label(rows.filter(function (r) {
+          return !r.missing && cls(r.hit.obj.status) === worstCls; })[0].hit.obj.status).toLowerCase()) +
+          (bad > 1 && worstCls !== 'down' ? ' +' : '') : rows.length + (rows.length === 1 ? ' item' : ' items')));
       box.appendChild(head);
+      // health line: one notch per row, in row order, so a fault reads from across the room
+      var line = el('div', 'health');
+      line.setAttribute('aria-hidden', 'true');
+      rows.forEach(function (r) { line.appendChild(el('i', r.missing ? 's-unknown' : 's-' + cls(r.hit.obj.status))); });
+      box.appendChild(line);
 
       var ul = el('ul', 'rows');
       rows.forEach(function (r) {
@@ -535,9 +546,14 @@
         var line2 = el('div', 'line2');
         var sub = r.hit.kind === 'sensor' ? o.device : (CFG.showHost ? o.host : '');
         line2.appendChild(el('span', 'dev', sub || ''));
-        if (c !== 'up') line2.appendChild(el('span', 'st', label(o.status)));
-        line2.appendChild(el('span', 'v', r.hit.kind === 'sensor' ? (o.lastValue || '-') : deviceValue(o)));
+        if (c !== 'up' && r.hit.kind === 'sensor') line2.appendChild(el('span', 'st', label(o.status)));
+        var val = r.hit.kind === 'sensor' ? (o.lastValue || '') : deviceValue(o);
+        if (!val && c !== 'up') val = o.downSince ? o.downSince : '';
+        line2.appendChild(el('span', 'v', val || '-'));
         body.appendChild(line2);
+        if (c !== 'up' && c !== 'paused' && r.hit.kind === 'sensor' && o.message && o.message !== 'OK') {
+          body.appendChild(el('span', 'why', o.message));
+        }
         li.appendChild(body);
         ul.appendChild(li);
       });
@@ -1316,6 +1332,11 @@
   // Branding: CFG.theme adds a body class; CFG.logo is an image next to this page
   // in webroot (falls back to the CFG.wordmark text if the file is missing).
   if (CFG.theme) document.body.classList.add('theme-' + CFG.theme);
+  if (CFG.fontCss && /^https:\/\/fonts\.googleapis\.com\//.test(CFG.fontCss)) {
+    var fl = document.createElement('link');
+    fl.rel = 'stylesheet'; fl.href = CFG.fontCss;
+    document.head.appendChild(fl);
+  }
   (function () {
     var box = $('logo');
     function wordmark() {

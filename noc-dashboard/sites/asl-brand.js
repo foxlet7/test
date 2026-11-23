@@ -7,9 +7,10 @@
  */
 Object.assign(window.NOC_CONFIG, {
   theme: 'alasilacx',
+  fontCss: 'https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700&display=swap', // brand face; falls back to Segoe UI offline
   brandName: 'AlasilaCX',
   logo: 'alasilacx-logo.png',
   wordmark: ['alasila', 'cx'],
-  reportPage: 'acx-report-v6.htm',   // the Reports button opens this file. PRTG caches webroot files by name, so bump the version on updates
+  reportPage: 'acx-report-v7.htm',   // the Reports button opens this file. PRTG caches webroot files by name, so bump the version on updates
   weekStartsOn: 0,   // reports: 0 = Sunday (KSA working week), 1 = Monday
 });
