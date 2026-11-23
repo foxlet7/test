@@ -55,13 +55,23 @@ const d = new Date();
 const BUILD = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') +
   ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 
+// Smaller CSS for PRTG's page-size limit: drop comments, indentation and blank lines (rules stay on their own lines).
+function css(text) {
+  return text.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((l) => l.trim()).filter(Boolean).join('\n');
+}
+
+// Our own scripts: drop whole-line // comments and indentation (no template literals in them).
+function slim(text) {
+  return text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('//')).join('\n');
+}
+
 function build(pageFile) {
   // Inline every local stylesheet and script the page references.
   let html = pub(pageFile)
-    .replace(/<link rel="stylesheet" href="([\w.-]+)">/g, (m, f) => '<style>\n' + pub(f) + '\n</style>')
+    .replace(/<link rel="stylesheet" href="([\w.-]+)">/g, (m, f) => '<style>\n' + css(pub(f)) + '\n</style>')
     .replace(/<script src="([\w.-]+)"><\/script>/g, (m, f) =>
       // site builds (with overlays) leave out the ?demo=1 sample data to stay small for PRTG
-      f === 'demo-data.js' && overlays.length ? '' : '<script>\n' + js(f === 'config.js' ? config : pub(f)) + '\n</script>');
+      f === 'demo-data.js' && overlays.length ? '' : '<script>\n' + js(f === 'config.js' ? config : /^(app|report|audit)\.js$/.test(f) ? slim(pub(f)) : pub(f)) + '\n</script>');
   html = html.replace('<!doctype html>', '<!doctype html>\n<!-- PRTG NOC Dashboard - single-file build. Edit NOC_CONFIG below to change layout. -->');
   if (/<(script src|link rel="stylesheet" href)="[\w.-]+"/.test(html)) throw new Error('bundle incomplete');
 

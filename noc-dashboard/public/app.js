@@ -747,6 +747,11 @@
     renderAlerts(m);
     if (INSIGHTS) renderInsights(m, shown);
     fitToScreen();
+    // and once more after side-panel transitions and web fonts have settled
+    clearTimeout(render.refit);
+    render.refit = setTimeout(function () {
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitToScreen); else fitToScreen();
+    }, 700);
     if (detail.open) updateDetail();
     document.title = (m.totals.down ? '(' + m.totals.down + ' DOWN) ' : '') + (CFG.brandName ? CFG.brandName + ' ' : '') + CFG.title;
   }
@@ -1257,9 +1262,14 @@
     var root = document.documentElement;
     var box = $('sections');
     var grid = box.querySelector('.panels');
+    // rem-sized columns animate their width; measure them at their final size, not mid-slide
+    document.body.classList.add('fitting');
     var top = document.querySelector('.top');
+    // Width must fit exactly; height gets a few px of slack, because tall ascenders and
+    // descenders (Titillium Web) poke past the line box without cutting anything off.
+    // A line-clamped name that really loses a line overflows by a whole line (~20 px).
     function clipped(n) {
-      return n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1;
+      return n.scrollWidth > n.clientWidth || n.scrollHeight > n.clientHeight + 5;
     }
     // Fits = no scrolling AND no name, value or heading cut off.
     function fits() {
@@ -1301,6 +1311,8 @@
     });
     setCols(best.cols);
     root.style.fontSize = best.size + 'px';
+    void document.body.offsetWidth;
+    document.body.classList.remove('fitting');
   }
 
   var resizeTimer;
@@ -1335,7 +1347,11 @@
   if (CFG.fontCss && /^https:\/\/fonts\.googleapis\.com\//.test(CFG.fontCss)) {
     var fl = document.createElement('link');
     fl.rel = 'stylesheet'; fl.href = CFG.fontCss;
+    // the web font changes text widths: fit the screen again once it has loaded
     document.head.appendChild(fl);
+    if (document.fonts && document.fonts.addEventListener) {
+      document.fonts.addEventListener('loadingdone', function () { setTimeout(fitToScreen, 50); });
+    }
   }
   (function () {
     var box = $('logo');
