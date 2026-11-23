@@ -1,0 +1,22 @@
+[Unit]
+Description=NOC Platform probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/noc-probe.env
+ExecStart=/usr/local/bin/noc-probe
+Restart=always
+RestartSec=5
+# Least privilege: a dynamic unprivileged user that may only open raw ICMP sockets.
+DynamicUser=yes
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+Environment=NOC_PRIVILEGED_PING=1
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

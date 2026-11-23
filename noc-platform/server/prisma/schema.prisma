@@ -1,0 +1,226 @@
+// NOC Platform data model.
+// Multi-tenant from day one: every operational row belongs to a Tenant, so one install
+// can serve one company or many MSP customers without a schema change.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN     // everything, including users and licences
+  OPERATOR  // add / edit devices, sensors, circuits; acknowledge alerts
+  VIEWER    // read-only (NOC wall, reports)
+}
+
+enum Status {
+  UNKNOWN
+  UP
+  WARNING
+  DOWN
+  PAUSED
+}
+
+enum SensorType {
+  PING
+  SNMP_TRAFFIC   // interface in/out rate (ifHCInOctets / ifHCOutOctets)
+  SNMP_OID       // any numeric OID, optional thresholds
+  SNMP_UPTIME    // sysUpTime; restarts raise a warning
+  HTTP           // status, response time, TLS certificate expiry
+  TCP            // port open + connect time
+  DNS            // resolve a name, optional expected answer
+}
+
+model Tenant {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  currency  String    @default("SAR")
+  createdAt DateTime  @default(now())
+  users     User[]
+  sites     Site[]
+  probes    Probe[]
+  devices   Device[]
+  circuits  Circuit[]
+  alerts    AlertEvent[]
+  channels  NotifyChannel[]
+}
+
+model User {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         Role      @default(VIEWER)
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+  sessions     Session[]
+}
+
+model Session {
+  id        String   @id            // sha256 of the cookie token; the token itself is never stored
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Site {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  location  String?
+  sortOrder Int      @default(0)
+  devices   Device[]
+  circuits  Circuit[]
+
+  @@unique([tenantId, name])
+}
+
+// A probe runs at a site / customer and polls devices there. It connects OUT to the
+// server with its token, so customer firewalls need no inbound rule.
+model Probe {
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name       String
+  tokenHash  String    @unique      // sha256 of the probe token
+  lastSeenAt DateTime?
+  version    String?
+  hostname   String?
+  devices    Device[]
+  createdAt  DateTime  @default(now())
+}
+
+model Device {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  siteId    String?
+  site      Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  probeId   String?
+  probe     Probe?   @relation(fields: [probeId], references: [id], onDelete: SetNull)
+  name      String
+  host      String                  // IP or DNS name the probe polls
+  kind      String   @default("generic") // fortigate, cisco, windows, linux, sbc, ...
+  // SNMP credentials live on the device; sensors reuse them.
+  snmpVersion   String?  // "2c" | "3"
+  snmpCommunity String?
+  snmpV3        Json?    // { user, authProto, authPass, privProto, privPass }
+  paused    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  sensors   Sensor[]
+
+  @@index([tenantId])
+}
+
+model Sensor {
+  id          String     @id @default(cuid())
+  deviceId    String
+  device      Device     @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  name        String
+  type        SensorType
+  config      Json       @default("{}")   // type-specific: { ifIndex }, { oid, unit }, { url, expect }, { port }, ...
+  intervalSec Int        @default(60)
+  // thresholds on the primary value, e.g. latency ms or Mbit/s; null = not used
+  warnAbove   Float?
+  downAbove   Float?
+  warnBelow   Float?
+  downBelow   Float?
+  failAfter   Int        @default(2)       // consecutive failed checks before DOWN (avoids flapping)
+  paused      Boolean    @default(false)
+
+  status      Status     @default(UNKNOWN)
+  lastValue   Float?
+  lastText    String?                       // formatted, e.g. "24.9 Mbit/s"
+  lastMessage String?
+  lastCheckAt DateTime?
+  statusSince DateTime?
+  failCount   Int        @default(0)
+
+  createdAt   DateTime   @default(now())
+  measurements Measurement[]
+  circuit     Circuit?
+  alerts      AlertEvent[]
+
+  @@index([deviceId])
+}
+
+// Time series. Plain table with a (sensorId, ts) index; TimescaleDB hypertable when available
+// (see migration). One row per check: primary value + secondary values in `extra`.
+model Measurement {
+  sensorId String
+  sensor   Sensor   @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  ts       DateTime
+  value    Float?
+  ok       Boolean
+  extra    Json?    // e.g. { inMbps, outMbps } or { lossPct } or { certDays }
+
+  @@id([sensorId, ts])
+  @@index([ts])
+}
+
+// Commercial view of a link: what it costs and what the carrier promised.
+model Circuit {
+  id             String    @id @default(cuid())
+  tenantId       String
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  siteId         String?
+  site           Site?     @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  name           String                     // "(054) STC 120 Mb DIA"
+  provider       String                     // STC, Mobily, Zain, GO, ...
+  circuitRef     String?                    // carrier circuit / account number
+  kind           String    @default("DIA")  // DIA, Broadband, IPVPN, MPLS, P2P, SIP trunk, 5G, ...
+  bandwidthMbps  Float?
+  monthlyCost    Float                      // in tenant currency, excl. VAT
+  oneTimeCost    Float     @default(0)
+  slaPct         Float?                     // e.g. 99.5
+  creditPctPerBreach Float?                 // % of monthly fee credited when SLA is missed
+  contractStart  DateTime?
+  contractEnd    DateTime?
+  // Availability is measured on this sensor (ideally the gateway ping, not the traffic sensor).
+  availSensorId  String?   @unique
+  availSensor    Sensor?   @relation(fields: [availSensorId], references: [id], onDelete: SetNull)
+  // Utilisation is measured on this SNMP traffic sensor.
+  trafficSensorId String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+}
+
+model AlertEvent {
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sensorId   String
+  sensor     Sensor    @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  from       Status
+  to         Status
+  message    String?
+  at         DateTime  @default(now())
+  ackedAt    DateTime?
+  ackedBy    String?
+  notifiedAt DateTime?
+
+  @@index([tenantId, at])
+}
+
+// Where alerts go: generic webhook (Teams / Slack / n8n) or email (SMTP settings in env).
+model NotifyChannel {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  kind      String                   // "webhook" | "teams" | "email"
+  target    String                   // URL or address
+  minStatus Status   @default(DOWN)  // notify on this status or worse
+  enabled   Boolean  @default(true)
+}

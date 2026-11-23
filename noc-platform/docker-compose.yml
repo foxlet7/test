@@ -1,0 +1,47 @@
+# NOC Platform: one-command install.
+#   cp .env.example .env    (set POSTGRES_PASSWORD and PUBLIC_URL)
+#   docker compose up -d --build
+#   open PUBLIC_URL -> first-run setup
+# Put it behind HTTPS (reverse proxy / load balancer) before probes connect over the internet.
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16   # pin a specific tag for production
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: noc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: noc
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U noc -d noc"]
+      interval: 5s
+      retries: 20
+
+  server:
+    build: ./server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://noc:${POSTGRES_PASSWORD}@db:5432/noc?schema=public
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+    ports:
+      - "${HTTP_PORT:-3000}:3000"
+
+  # Optional: a probe on the same host (start with: docker compose --profile local-probe up -d).
+  # Create the probe in the UI first and put its token in .env as PROBE_TOKEN.
+  probe:
+    profiles: ["local-probe"]
+    build: ./probe
+    restart: unless-stopped
+    depends_on: [server]
+    cap_add: [NET_RAW]
+    environment:
+      NOC_SERVER: http://server:3000
+      NOC_TOKEN: ${PROBE_TOKEN:-}
+
+volumes:
+  db-data:
