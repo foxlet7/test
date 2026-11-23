@@ -5,5 +5,7 @@
   "author": {
     "name": "foxlet7"
   },
+  "license": "MIT",
+  "icon": ".claude-plugin/icon.png",
   "keywords": ["skills", "discovery", "skills.sh", "npx-skills"]
 }

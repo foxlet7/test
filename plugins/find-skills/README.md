@@ -13,4 +13,6 @@ Inspired by the `find-skills` skill in [vercel-labs/skills](https://github.com/v
 
 Then ask things like "is there a skill for writing Playwright tests?" or run `/find-skills`.
 
+License: MIT.
+
 Requires Node.js (`npx`) and network access to npm and GitHub.
