@@ -17,6 +17,7 @@
   --accent: #2F6FE4;
   --on-accent: #FFFFFF;
   --danger: #CF3F3F;
+  --good: #1B8A55;
   --scrim: rgba(10, 16, 30, .42);
   --shadow: 0 1px 2px rgba(20, 33, 61, .06), 0 6px 20px rgba(20, 33, 61, .06);
   --font-display: "Bricolage Grotesque", "Figtree", system-ui, sans-serif;
@@ -26,14 +27,14 @@
   :root:not([data-theme="light"]) {
     --bg: #0C1322; --surface: #162036; --surface-2: #212C46; --ink: #E9EFF9; --muted: #95A2BA;
     --line: rgba(233, 239, 249, .10); --gold: #F5B83A; --gold-deep: #D99A1E; --accent: #5C8EF5; --on-accent: #0C1322;
-    --danger: #F07474; --scrim: rgba(0, 0, 0, .6); --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+    --danger: #F07474; --good: #4CC98A; --scrim: rgba(0, 0, 0, .6); --shadow: 0 1px 2px rgba(0, 0, 0, .3);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0C1322; --surface: #162036; --surface-2: #212C46; --ink: #E9EFF9; --muted: #95A2BA;
   --line: rgba(233, 239, 249, .10); --gold: #F5B83A; --gold-deep: #D99A1E; --accent: #5C8EF5; --on-accent: #0C1322;
-  --danger: #F07474; --scrim: rgba(0, 0, 0, .6); --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+  --danger: #F07474; --good: #4CC98A; --scrim: rgba(0, 0, 0, .6); --shadow: 0 1px 2px rgba(0, 0, 0, .3);
   color-scheme: dark;
 }
 
@@ -225,6 +226,65 @@ button { cursor: pointer; }
 .status { text-align: center; font-size: .8rem; color: var(--muted); margin-top: 28px; }
 #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 70; }
 
+/* Tabs and spending */
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--surface-2); border-radius: 14px; margin-bottom: 16px; }
+.tabs button { border: 0; background: transparent; border-radius: 10px; min-height: 40px; font-weight: 700; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.months { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; scrollbar-width: none; }
+.months::-webkit-scrollbar { display: none; }
+.mchip { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 8px 14px; font-weight: 600; }
+.mchip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: transparent; }
+.inout { display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--muted); font-size: .92rem; }
+.inout b { color: var(--ink); }
+.pos { color: var(--good) !important; }
+.neg { color: var(--danger) !important; }
+.notice { background: color-mix(in srgb, var(--gold) 20%, var(--surface)); border-radius: 14px; padding: 8px 8px 8px 14px; margin-bottom: 14px; font-size: .92rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px; }
+.notice .link-btn { color: var(--ink); text-decoration: underline; }
+.ideas { display: grid; gap: 10px; }
+.idea { background: var(--surface); border-radius: 18px; padding: 14px 16px; box-shadow: var(--shadow); display: grid; gap: 8px; }
+.idea h3 { margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+.idea p { margin: 0; color: var(--muted); font-size: .92rem; }
+.idea .btn { justify-self: start; min-height: 40px; padding: 8px 14px; font-size: .92rem; }
+.cats, .txs { list-style: none; margin: 0; padding: 0; }
+.cats { background: var(--surface); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; }
+.cats > li + li { border-top: 1px solid var(--line); }
+.cat-row { width: 100%; border: 0; background: transparent; display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; grid-template-areas: "dot name amt" "bar bar bar"; align-items: center; gap: 8px 10px; padding: 14px 16px; text-align: left; }
+.cat-row[aria-expanded="true"] { background: var(--surface-2); }
+.dot { grid-area: dot; width: 12px; height: 12px; border-radius: 50%; }
+.cat-name { grid-area: name; font-weight: 600; }
+.cat-amt { grid-area: amt; font-weight: 700; }
+.cat-bar { grid-area: bar; height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.cat-bar i { display: block; height: 100%; border-radius: inherit; }
+.txs li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; padding: 10px 16px; border-top: 1px solid var(--line); align-items: center; }
+.tx-desc { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx-date { display: block; font-size: .8rem; color: var(--muted); }
+.tx-amt { font-weight: 700; }
+.tx-cat { grid-column: 1 / -1; justify-self: start; max-width: 100%; font-size: .85rem; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 5px 8px; }
+.subs li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 12px 16px; align-items: center; }
+.subs .subs-total { color: var(--muted); font-weight: 600; }
+.spend-actions { display: grid; gap: 10px; margin-top: 24px; }
+.steps { margin: 0 0 16px; padding-left: 1.3em; display: grid; gap: 6px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.file-btn { width: 100%; }
+.file-btn:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.preview-sum { display: grid; gap: 4px; margin-bottom: 14px; }
+.preview-sum p { margin: 4px 0 0; }
+.ps-big { font-family: var(--font-display); font-weight: 800; font-size: 1.8rem; }
+.ps-file { font-size: .85rem; color: var(--muted); overflow-wrap: anywhere; }
+.sheet .txs { background: var(--bg); border-radius: 14px; overflow: hidden; margin-top: 6px; }
+.sheet .txs li:first-child { border-top: 0; }
+.money-input.small input { font-size: 1.5rem; }
+.money-input.small span { font-size: 1.25rem; }
+.jar-pick { display: grid; gap: 8px; margin-top: 12px; }
+.pick { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 12px; align-items: center; text-align: left; border: 1px solid var(--line); background: var(--bg); border-radius: 14px; padding: 8px 12px; }
+.pick-jar { height: 58px; display: grid; place-items: center; }
+.pick-jar .jar-wrap { height: 58px; }
+.pick-jar .jar-emoji { font-size: 1rem; }
+.pick-text { display: grid; min-width: 0; }
+.pick-text b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-grid { display: grid; }
+
 @media (max-width: 360px) {
   .grid { gap: 10px; }
   .card-jar, .card-jar .jar-wrap { height: 110px; }
@@ -248,6 +308,10 @@ button { cursor: pointer; }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
     </header>
+    <div class="tabs" role="tablist" aria-label="View">
+      <button role="tab" data-tab="jars" aria-selected="true">Jars</button>
+      <button role="tab" data-tab="spend" aria-selected="false">Spending</button>
+    </div>
     <div id="homeBody"></div>
   </section>
 
@@ -350,6 +414,8 @@ button { cursor: pointer; }
   // ---------- model ----------
   let state = { v: 1, currency: guessCurrency(), jars: [] };
   let openJarId = null;
+  let spend = { v: 1, tx: [], rules: {}, sample: false };
+  let tab = "jars";
 
   const saved = (jar) => jar.deposits.reduce((s, d) => s + d.amount, 0);
   const progress = (jar) => jar.goal > 0 ? Math.min(Math.max(saved(jar) / jar.goal, 0), 1) : 0;
@@ -357,16 +423,30 @@ button { cursor: pointer; }
   const jarById = (id) => state.jars.find((j) => j.id === id);
   const colorOf = (jar) => COLORS[jar.color] || COLORS.ocean;
 
+  const monthLabel = (iso) => isoToDate(iso).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  function addMonths(n) { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + Math.ceil(n)); return d.toISOString().slice(0, 10); }
+
+  /** One line under the big number: how the jar is doing against its date and monthly plan. */
   function pace(jar) {
     if (isComplete(jar)) return { text: "Goal reached! Nicely done.", done: true };
-    if (!jar.deadline) return null;
-    const today = isoToDate(todayISO());
-    const days = Math.round((isoToDate(jar.deadline) - today) / 86400000);
     const remaining = Math.max(jar.goal - saved(jar), 0);
-    if (days <= 0) return { text: `Target date passed · ${fmt(remaining)} to go` };
-    const weeks = Math.max(days / 7, 1);
-    const when = isoToDate(jar.deadline).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-    return { text: `Save ${fmt(remaining / weeks)} a week to reach it by ${when}` };
+    const plan = jar.plan > 0 ? jar.plan : 0;
+    let days = null;
+    if (jar.deadline) days = Math.round((isoToDate(jar.deadline) - isoToDate(todayISO())) / 86400000);
+    if (days !== null && days <= 0) return { text: `Target date passed · ${fmt(remaining)} to go` };
+    if (days !== null) {
+      const months = Math.max(days / 30.44, 1 / 4.35);
+      const perMonth = remaining / months;
+      const when = isoToDate(jar.deadline).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+      if (plan) {
+        return plan + 0.005 >= perMonth
+          ? { text: `On track: ${fmt(plan, true)} a month gets you there by ${monthLabel(addMonths(remaining / plan))}`, good: true }
+          : { text: `${fmt(plan, true)} a month isn't enough for ${when}. You'd need ${fmt(Math.ceil(perMonth), true)} a month.` };
+      }
+      return { text: `Save ${fmt(remaining / Math.max(days / 7, 1))} a week (${fmt(Math.ceil(perMonth), true)} a month) to reach it by ${when}` };
+    }
+    if (plan) return { text: `At ${fmt(plan, true)} a month you'll reach it by ${monthLabel(addMonths(remaining / plan))}`, good: true };
+    return null;
   }
 
   function normalize(raw) {
@@ -378,6 +458,7 @@ button { cursor: pointer; }
         id: j.id, name: String(j.name || "Jar").slice(0, 60), emoji: String(j.emoji || "💰").slice(0, 8),
         goal: Number(j.goal) > 0 ? Number(j.goal) : 1, color: COLORS[j.color] ? j.color : "ocean",
         createdAt: Number(j.createdAt) || Date.now(), deadline: typeof j.deadline === "string" ? j.deadline : null,
+        plan: Number(j.plan) > 0 ? Number(j.plan) : 0,
         deposits: Array.isArray(j.deposits) ? j.deposits.filter((d) => d && isFinite(Number(d.amount))).map((d) => ({
           id: String(d.id || uid()), amount: Number(d.amount), note: String(d.note || "").slice(0, 80),
           date: typeof d.date === "string" ? d.date : todayISO(), at: Number(d.at) || 0,
@@ -387,13 +468,51 @@ button { cursor: pointer; }
     return out;
   }
 
-  // ---------- storage: private db doc when available, browser storage as backup ----------
-  const LOCAL_KEY = "savings-jar-v1";
-  function readLocal() { try { const s = localStorage.getItem(LOCAL_KEY); return s ? normalize(JSON.parse(s)) : null; } catch { return null; } }
-  function writeLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(state)); } catch {} }
+  // ---------- storage: private db docs when available, browser storage as backup ----------
+  // Two documents in the viewer's private subtree: "savings" (jars) and "spending" (imported transactions).
+  function makeSync({ localKey, docId, get, put, hasData }) {
+    const s = { ref: null, writing: false, dirty: false, confirmed: false };
+    s.readLocal = () => { try { const v = localStorage.getItem(localKey); return v ? JSON.parse(v) : null; } catch { return null; } };
+    s.writeLocal = () => { try { localStorage.setItem(localKey, JSON.stringify(get())); } catch {} };
+    s.attach = (coll, onServer, onError) => {
+      s.ref = coll.doc(docId);
+      s.ref.onSnapshot((snap) => {
+        if (!snap.metadata.fromCache) onServer();
+        if (snap.metadata.hasPendingWrites || s.writing || s.dirty) return;
+        if (snap.exists) { if (put(clone(snap.data()))) { s.writeLocal(); renderAll(); } }
+        else if (!snap.metadata.fromCache && !s.confirmed && hasData()) s.save(); // move browser-only data into the account
+        if (!snap.metadata.fromCache) s.confirmed = true;
+      }, (e) => { s.ref = null; onError(e); });
+    };
+    s.save = () => { s.writeLocal(); if (!s.ref) return; s.dirty = true; s.flush(); };
+    s.flush = async () => {
+      if (s.writing) return;
+      s.writing = true;
+      let retried = false;
+      while (s.dirty) {
+        s.dirty = false;
+        try { await s.ref.set(clone(get())); retried = false; if (Store.mode !== "cloud") Store.setMode("cloud"); }
+        catch (e) {
+          if (e && e.code === "unavailable" && !retried) { retried = true; s.dirty = true; await new Promise((r) => setTimeout(r, 600 + Math.random() * 800)); }
+          else Store.setMode(e && e.code === "quota_exceeded" ? "full" : "error");
+        }
+      }
+      s.writing = false;
+    };
+    return s;
+  }
+
+  const SavingsSync = makeSync({
+    localKey: "savings-jar-v1", docId: "savings", get: () => state, hasData: () => state.jars.length > 0,
+    put: (raw) => { const next = normalize(raw); if (!next) return false; state = next; for (const k in fmtCache) delete fmtCache[k]; return true; },
+  });
+  const SpendSync = makeSync({
+    localKey: "savings-jar-spending-v1", docId: "spending", get: () => spend, hasData: () => spend.tx.length > 0,
+    put: (raw) => { const next = normalizeSpend(raw); if (!next) return false; spend = next; return true; },
+  });
 
   const Store = {
-    ref: null, mode: "local", writing: false, dirty: false,
+    mode: "local",
     async init() {
       const c = window.claude;
       if (!c || typeof c.use !== "function") return this.setMode("local");
@@ -402,61 +521,35 @@ button { cursor: pointer; }
       let id = null;
       try { id = user ? await user.id() : null; } catch {}
       if (!db || !id) return this.setMode("local");
-      try { this.ref = db.collection("data/users/" + id).doc("savings"); } catch { return this.setMode("local"); }
+      let coll;
+      try { coll = db.collection("data/users/" + id); } catch { return this.setMode("local"); }
       this.setMode("connecting");
       const timer = setTimeout(() => { if (this.mode === "connecting") this.setMode("slow"); }, 10000);
-      let confirmed = false;
-      this.ref.onSnapshot((snap) => {
-        if (!snap.metadata.fromCache) { clearTimeout(timer); if (this.mode !== "cloud") this.setMode("cloud"); }
-        if (snap.metadata.hasPendingWrites || this.writing || this.dirty) return;
-        if (snap.exists) {
-          const next = normalize(clone(snap.data()));
-          if (next) { state = next; for (const k in fmtCache) delete fmtCache[k]; writeLocal(); renderAll(); }
-        } else if (!snap.metadata.fromCache && !confirmed && state.jars.length) {
-          this.save(); // first visit with jars kept in this browser: move them to the account
-        }
-        if (!snap.metadata.fromCache) confirmed = true;
-      }, () => { clearTimeout(timer); this.ref = null; this.setMode("local"); });
+      const onServer = () => { clearTimeout(timer); if (this.mode === "connecting" || this.mode === "slow") this.setMode("cloud"); };
+      const onError = () => { clearTimeout(timer); this.setMode("local"); };
+      SavingsSync.attach(coll, onServer, onError);
+      SpendSync.attach(coll, onServer, onError);
     },
     setMode(m) {
       this.mode = m;
-      const el = $("#status");
-      el.textContent = {
+      $("#status").textContent = {
         local: "Saved in this browser.",
         connecting: "Loading your jars…",
         slow: "Can't reach your saved jars yet. Changes are kept on this device for now.",
-        cloud: "Saved to your Claude account. Only you can see these jars.",
+        cloud: "Saved to your Claude account. Only you can see your jars and spending.",
         error: "Couldn't save the last change to your account. It's kept on this device.",
+        full: "Your saved data is full. Remove older imported statements to keep saving.",
       }[m] || "";
-    },
-    save() {
-      writeLocal();
-      if (!this.ref) return;
-      this.dirty = true;
-      this.flush();
-    },
-    async flush() {
-      if (this.writing) return;
-      this.writing = true;
-      let retried = false;
-      while (this.dirty) {
-        this.dirty = false;
-        try {
-          await this.ref.set(clone(state));
-          retried = false;
-          if (this.mode !== "cloud") this.setMode("cloud");
-        } catch (e) {
-          if (e && e.code === "unavailable" && !retried) {
-            retried = true; this.dirty = true;
-            await new Promise((r) => setTimeout(r, 600 + Math.random() * 800));
-          } else { this.setMode("error"); }
-        }
-      }
-      this.writing = false;
     },
   };
 
-  function commit() { Store.save(); }
+  function commit() { SavingsSync.save(); }
+  function commitSpend() {
+    // Keep the document well under the store's 256 KB limit: drop the oldest transactions if needed.
+    spend.tx.sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : 0));
+    while (spend.tx.length > 200 && JSON.stringify(spend).length > 220000) spend.tx.splice(-100);
+    SpendSync.save();
+  }
 
   // ---------- jar drawing ----------
   let svgSeq = 0;
@@ -501,6 +594,8 @@ button { cursor: pointer; }
   // ---------- home ----------
   function renderHome() {
     const body = $("#homeBody");
+    document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+    if (tab === "spend") { renderSpending(body); return; }
     if (!state.jars.length) {
       body.innerHTML = `
         <div class="empty">
@@ -604,7 +699,7 @@ button { cursor: pointer; }
     const paceEl = $("#dPace");
     paceEl.textContent = p ? p.text : "";
     paceEl.hidden = !p;
-    paceEl.classList.toggle("done", !!(p && p.done));
+    paceEl.classList.toggle("done", !!(p && (p.done || p.good)));
     $("#wdBtn").disabled = saved(jar) <= 0;
     renderHistory(jar);
   }
@@ -767,8 +862,8 @@ button { cursor: pointer; }
   function openEditor(jarId) {
     const jar = jarId ? jarById(jarId) : null;
     const draft = jar
-      ? { name: jar.name, emoji: jar.emoji, goal: plain(jar.goal), color: jar.color, deadline: jar.deadline }
-      : { name: "", emoji: EMOJIS[0], goal: "", color: "ocean", deadline: null };
+      ? { name: jar.name, emoji: jar.emoji, goal: plain(jar.goal), color: jar.color, deadline: jar.deadline, plan: jar.plan ? plain(jar.plan) : "" }
+      : { name: "", emoji: EMOJIS[0], goal: "", color: "ocean", deadline: null, plan: "" };
     const in3m = (() => { const d = new Date(); d.setMonth(d.getMonth() + 3); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); })();
     const tmpJar = { color: draft.color };
     openSheet(`
@@ -788,6 +883,11 @@ button { cursor: pointer; }
           <div class="money-input"><span>${esc(currencySymbol())}</span><input id="jGoal" inputmode="decimal" autocomplete="off" placeholder="0"></div>
         </div>
         <div class="field">
+          <label for="jPlan">Monthly plan <span style="text-transform:none;letter-spacing:0;font-weight:500">(optional)</span></label>
+          <div class="money-input small"><span>${esc(currencySymbol())}</span><input id="jPlan" inputmode="decimal" autocomplete="off" placeholder="0"></div>
+          <span class="hint">How much you mean to put in each month. The Spending tab can suggest an amount.</span>
+        </div>
+        <div class="field">
           <span class="label" id="iconLbl">Icon</span>
           <div class="emoji-grid" role="group" aria-labelledby="iconLbl">${EMOJIS.map((e) => `<button type="button" data-emoji="${e}" aria-label="${e}">${e}</button>`).join("")}</div>
         </div>
@@ -805,7 +905,7 @@ button { cursor: pointer; }
       </form>`, (sheet) => {
       const name = $("#jName", sheet), goal = $("#jGoal", sheet), hasDate = $("#jHasDate", sheet), date = $("#jDate", sheet);
       const saveBtn = sheet.querySelector('[data-act="save"]'), submit = $("#jarSubmit", sheet);
-      name.value = draft.name; goal.value = draft.goal;
+      name.value = draft.name; goal.value = draft.goal; $("#jPlan", sheet).value = draft.plan;
       hasDate.checked = !!draft.deadline; date.value = draft.deadline || in3m; date.hidden = !draft.deadline;
       const paint = () => {
         tmpJar.color = draft.color; jarVars(sheet, tmpJar);
@@ -824,6 +924,7 @@ button { cursor: pointer; }
         const fields = {
           name: name.value.trim().slice(0, 60), emoji: draft.emoji, goal: parseAmount(goal.value), color: draft.color,
           deadline: hasDate.checked && date.value ? date.value : null,
+          plan: parseAmount($("#jPlan", sheet).value) || 0,
         };
         if (jar) Object.assign(jar, fields);
         else state.jars.push({ id: uid(), createdAt: Date.now(), deposits: [], ...fields });
@@ -870,6 +971,542 @@ button { cursor: pointer; }
       };
       sheet.querySelector('[data-act="done"]').onclick = closeSheet;
     });
+  }
+
+  // ---------- spending: categories ----------
+  const CATS = {
+    delivery: { name: "Food delivery", color: "#F2683C", flex: true, kw: ["hungerstation", "hunger station", "هنقرستيشن", "jahez", "جاهز", "mrsool", "مرسول", "keeta", "كيتا", "the chefz", "thechefz", "the chefs", "toyou", "careem food", "talabat", "طلبات"] },
+    dining: { name: "Restaurants & cafés", color: "#E9487D", flex: true, kw: ["starbucks", "ستاربكس", "mcdonald", "ماكدونالدز", "kfc", "albaik", "al baik", "البيك", "kudu", "كودو", "herfy", "هرفي", "half million", "هاف مليون", "barns", "بارنز", "dunkin", "دانكن", "tim hortons", "تيم هورتنز", "dr.cafe", "dr. cafe", "dr cafe", "د. كيف", "caribou", "كاريبو", "shawarma", "شاورما", "burger", "برجر", "pizza", "بيتزا", "cafe", "café", "coffee", "كوفي", "قهوة", "كافيه", "restaurant", "مطعم", "مطاعم", "bakery", "مخبز", "grill", "مشويات", "subway", "domino", "papa john", "shake shack", "five guys", "maestro", "مايسترو"] },
+    groceries: { name: "Groceries", color: "#24B48F", kw: ["panda", "بنده", "danube", "الدانوب", "tamimi", "التميمي", "othaim", "العثيمين", "carrefour", "كارفور", "lulu", "لولو", "nana", "نعناع", "ninja", "نينجا", "farm superstores", "المزرعة", "bindawood", "بن داود", "supermarket", "سوبرماركت", "سوبر ماركت", "hypermarket", "هايبر", "grocery", "بقالة", "تموينات", "manuel market", "spar", "سبار"] },
+    transport: { name: "Fuel & transport", color: "#338CF2", kw: ["aldrees", "al drees", "الدريس", "sasco", "ساسكو", "petromin", "بترومين", "naft", "نفط", "uber", "اوبر", "أوبر", "careem", "كريم", "bolt", "jeeny", "جيني", "fuel", "وقود", "بنزين", "petrol", "gas station", "محطة", "parking", "مواقف", "saptco", "سابتكو", "darb", "درب", "flynas", "flyadeal", "saudia", "الخطوط السعودية", "طيران"] },
+    shopping: { name: "Shopping", color: "#8F66EB", flex: true, kw: ["amazon", "امازون", "أمازون", "noon", "نون", "namshi", "نمشي", "shein", "شي ان", "jarir", "جرير", "extra stores", "extra", "اكسترا", "إكسترا", "ikea", "ايكيا", "centrepoint", "سنتربوينت", "h&m", "zara", "زارا", "max fashion", "sephora", "سيفورا", "nice one", "نايس ون", "apple store", "mall", "مول", "trendyol", "aliexpress", "temu", "تيمو", "golden scent"] },
+    bills: { name: "Bills & subscriptions", color: "#0EA5B7", kw: ["stc", "اس تي سي", "mobily", "موبايلي", "zain", "زين", "netflix", "نتفلكس", "shahid", "شاهد", "spotify", "سبوتيفاي", "anghami", "أنغامي", "انغامي", "apple.com", "itunes", "icloud", "google", "youtube", "osn", "disney", "amazon prime", "prime video", "starzplay", "sawa", "سوا", "salam mobile", "virgin mobile", "فيرجن", "lebara", "ليبارا", "sadad", "سداد", "electricity", "الكهرباء", "sec electricity", "national water", "المياه", "ejar", "إيجار", "ايجار", "rent", "insurance", "تأمين", "tawuniya", "bupa", "بوبا", "chatgpt", "openai", "anthropic", "claude.ai", "playstation", "xbox", "steam"] },
+    entertainment: { name: "Fun & leisure", color: "#E0A100", flex: true, kw: ["cinema", "سينما", "vox", "muvi", "موفي", "amc", "empire cinemas", "boulevard", "بوليفارد", "webook", "ويبوك", "fitness time", "وقت اللياقة", "gym", "جيم", "hotel", "فندق", "booking.com", "airbnb", "agoda", "almosafer", "المسافر", "tickets", "تذاكر"] },
+    health: { name: "Health", color: "#5AAE3E", kw: ["nahdi", "النهدي", "al dawaa", "aldawaa", "الدواء", "pharmacy", "صيدلية", "hospital", "مستشفى", "clinic", "عيادة", "dental", "أسنان", "اسنان", "medical", "طبي", "مختبر", "whites"] },
+    cash: { name: "Cash withdrawals", color: "#8A94A6", kw: ["atm", "صراف", "cash withdrawal", "سحب نقدي", "سحب صراف", "cash wdl"] },
+    transfers: { name: "Transfers out", color: "#6B7FD6", kw: ["transfer", "تحويل", "sarie", "سريع", "remittance", "حوالة", "stc pay", "stcpay", "urpay", "barq", "برق", "tiqmo"] },
+    fees: { name: "Fees", color: "#C2410C", kw: ["fee", "fees", "رسوم", "commission", "عمولة", "charges"] },
+    other: { name: "Other", color: "#A0A7B4", kw: [] },
+  };
+  const catName = (c) => (c === "income" ? "Money in" : (CATS[c] || CATS.other).name);
+  const catColor = (c) => (c === "income" ? "var(--gold)" : (CATS[c] || CATS.other).color);
+  const KW = [];
+  for (const [k, c] of Object.entries(CATS)) for (const w of c.kw) KW.push([w, k]);
+  KW.sort((a, b) => b[0].length - a[0].length); // longest match wins: "amazon prime" beats "amazon", "stc pay" beats "stc"
+  const normDigits = (s) => String(s ?? "").replace(/[٠-٩]/g, (d) => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, (d) => d.charCodeAt(0) - 1776);
+  function kwHit(text, w) {
+    if (!/^[\x00-\x7f]+$/.test(w) || w.length > 5) return text.includes(w);
+    for (let i = text.indexOf(w); i >= 0; i = text.indexOf(w, i + 1)) {
+      if (!/[a-z0-9]/.test(text[i - 1] || "") && !/[a-z0-9]/.test(text[i + w.length] || "")) return true;
+    }
+    return false;
+  }
+  const merchantKey = (desc) => normDigits(desc).toLowerCase().replace(/[0-9*#•.,:;/\\_\-()]+/g, " ").replace(/\s+/g, " ").trim().split(" ").slice(0, 3).join(" ");
+  function categorize(desc, amount) {
+    const rule = spend.rules[merchantKey(desc)];
+    if (rule) return rule;
+    if (amount > 0) return "income";
+    const t = " " + normDigits(desc).toLowerCase() + " ";
+    for (const [w, k] of KW) if (kwHit(t, w)) return k;
+    return "other";
+  }
+  const effCat = (t) => (t.a < 0 && t.c === "income" ? "other" : t.a > 0 ? "income" : t.c);
+
+  function normalizeSpend(raw) {
+    if (!raw || typeof raw !== "object" || !Array.isArray(raw.tx)) return null;
+    const ok = (k) => k === "income" || Object.prototype.hasOwnProperty.call(CATS, k);
+    const rules = {};
+    if (raw.rules && typeof raw.rules === "object") for (const [k, v] of Object.entries(raw.rules).slice(0, 500)) if (ok(v)) rules[k] = v;
+    return {
+      v: 1, sample: !!raw.sample, rules,
+      tx: raw.tx.filter((t) => t && /^\d{4}-\d\d-\d\d$/.test(t.d) && isFinite(Number(t.a))).map((t) => ({
+        id: String(t.id || uid()), d: t.d, t: String(t.t || "").slice(0, 70), a: Number(t.a), c: ok(t.c) ? t.c : "other", ...(t.s ? { s: 1 } : {}),
+      })),
+    };
+  }
+
+  // ---------- spending: reading a bank statement ----------
+  const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
+  const pad = (n) => String(n).padStart(2, "0");
+  const isoOf = (y, m, d) => (y > 1900 && y < 2200 && m >= 1 && m <= 12 && d >= 1 && d <= 31 ? `${y}-${pad(m)}-${pad(d)}` : null);
+  function toNumber(v) {
+    if (typeof v === "number") return isFinite(v) ? v : NaN;
+    let t = normDigits(v).replace(/٫/g, ".").replace(/[٬,\s]/g, "");
+    if (!/\d/.test(t)) return NaN;
+    const neg = /^\(.*\)$/.test(t) || /-$/.test(t) || /^[^\d]*-/.test(t);
+    t = t.replace(/[^\d.]/g, "");
+    const n = parseFloat(t);
+    return isFinite(n) ? (neg ? -n : n) : NaN;
+  }
+  function dateOrder(values) {
+    let dmy = 0, mdy = 0;
+    for (const v of values) {
+      if (typeof v !== "string") continue;
+      const m = normDigits(v).match(/(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})/);
+      if (!m) continue;
+      if (+m[1] > 12) dmy++; else if (+m[2] > 12) mdy++;
+    }
+    return mdy > dmy ? "mdy" : "dmy"; // Saudi statements are day/month/year unless the data says otherwise
+  }
+  function toISO(v, order) {
+    if (v instanceof Date && !isNaN(v)) return isoOf(v.getFullYear(), v.getMonth() + 1, v.getDate());
+    if (typeof v === "number") {
+      if (v > 20000 && v < 80000) { const d = new Date(Math.round((v - 25569) * 86400000)); return isoOf(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()); }
+      return null;
+    }
+    const t = normDigits(v).trim().toLowerCase();
+    let m = t.match(/(\d{4})[/.\-](\d{1,2})[/.\-](\d{1,2})/);
+    if (m) return isoOf(+m[1], +m[2], +m[3]);
+    m = t.match(/(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})/);
+    if (m) { let y = +m[3]; if (y < 100) y += 2000; return order === "mdy" ? isoOf(y, +m[1], +m[2]) : isoOf(y, +m[2], +m[1]); }
+    m = t.match(/(\d{1,2})[\s\-]([a-z]{3,4})[a-z]*[\s\-,]+(\d{4})/);
+    if (m && MONTHS[m[2]]) return isoOf(+m[3], MONTHS[m[2]], +m[1]);
+    m = t.match(/([a-z]{3,4})[a-z]*\s+(\d{1,2}),?\s+(\d{4})/);
+    if (m && MONTHS[m[1]]) return isoOf(+m[3], MONTHS[m[1]], +m[2]);
+    return null;
+  }
+  const SYN = {
+    type: ["dr/cr", "cr/dr", "debit/credit", "transaction type", "type", "نوع العملية", "نوع الحركة", "النوع"],
+    date: ["transaction date", "posting date", "value date", "date", "التاريخ", "تاريخ العملية", "تاريخ الحركة", "تاريخ"],
+    desc: ["description", "transaction details", "details", "narrative", "narration", "merchant name", "merchant", "particulars", "البيان", "التفاصيل", "الوصف", "تفاصيل العملية", "اسم التاجر"],
+    out: ["debit amount", "debit", "withdrawals", "withdrawal", "money out", "مدين", "المدين", "مسحوبات", "سحب", "خصم"],
+    in: ["credit amount", "credit", "deposits", "deposit", "money in", "دائن", "الدائن", "إيداعات", "إيداع", "ايداع"],
+    amount: ["transaction amount", "amount", "المبلغ", "مبلغ العملية", "القيمة"],
+  };
+  const cellText = (c) => (c instanceof Date ? "" : normDigits(c).toLowerCase().replace(/\s+/g, " ").trim());
+  function matchHeader(row) {
+    const cells = row.map(cellText), used = new Set(), map = {};
+    for (const field of ["type", "date", "desc", "out", "in", "amount"]) {
+      let found = -1;
+      for (const exact of [true, false]) {
+        for (const syn of SYN[field]) {
+          found = cells.findIndex((c, i) => !used.has(i) && c && c.length < 40 && (exact ? c === syn : c.includes(syn)));
+          if (found >= 0) break;
+        }
+        if (found >= 0) break;
+      }
+      if (found >= 0) { map[field] = found; used.add(found); }
+    }
+    if (map.amount == null && map.type != null) delete map.type;
+    return map;
+  }
+  const validMap = (m) => m && m.date != null && m.desc != null && (m.amount != null || m.out != null || m.in != null);
+  function analyze(rows) {
+    for (let i = 0; i < Math.min(rows.length, 40); i++) {
+      const map = matchHeader(rows[i] || []);
+      if (validMap(map)) return { headerRow: i, map };
+    }
+    const hr = rows.findIndex((r, i) => i < 40 && (r || []).filter((c) => typeof c === "string" && c.trim()).length >= 3);
+    return { headerRow: Math.max(hr, 0), map: null };
+  }
+  const SKIP = /opening balance|closing balance|balance brought|balance carried|رصيد افتتاحي|الرصيد الافتتاحي|رصيد ختامي|الرصيد الختامي|^total|الإجمالي|المجموع/i;
+  function signFromType(v) {
+    const t = cellText(v);
+    if (/^(cr|c)$|credit|deposit|دائن|إيداع|ايداع|refund|استرداد/.test(t)) return 1;
+    if (/^(dr|d)$|debit|withdraw|purchase|مدين|سحب|شراء|خصم/.test(t)) return -1;
+    return 0;
+  }
+  const cleanDesc = (t) => normDigits(t).replace(/\s+/g, " ").trim().replace(/\d[\d*xX•]{5,}\d*/g, "••••").slice(0, 70);
+  function extract(rows, headerRow, map) {
+    const body = rows.slice(headerRow + 1);
+    const order = dateOrder(body.map((r) => (r || [])[map.date]));
+    const tx = [];
+    let skipped = 0, anyNeg = false;
+    for (const r of body) {
+      if (!r || !r.some((c) => c !== "" && c != null)) continue;
+      const d = toISO(r[map.date], order);
+      const desc = String(r[map.desc] ?? "");
+      let amt = NaN;
+      if (map.out != null || map.in != null) {
+        const o = map.out != null ? toNumber(r[map.out]) : NaN, i = map.in != null ? toNumber(r[map.in]) : NaN;
+        if (isFinite(o) || isFinite(i)) amt = (isFinite(i) ? Math.abs(i) : 0) - (isFinite(o) ? Math.abs(o) : 0);
+      } else if (map.amount != null) {
+        amt = toNumber(r[map.amount]);
+        if (map.type != null && isFinite(amt)) { const sg = signFromType(r[map.type]); if (sg) amt = sg * Math.abs(amt); }
+      }
+      if (!d || !isFinite(amt) || Math.abs(amt) < 0.005 || SKIP.test(cellText(desc))) { skipped++; continue; }
+      if (amt < 0) anyNeg = true;
+      tx.push({ d, t: cleanDesc(desc) || "Transaction", a: Math.round(amt * 100) / 100 });
+    }
+    // One amount column, no minus signs and no type column: the amounts are spending.
+    const assumedSpending = map.amount != null && map.type == null && !anyNeg && tx.length > 0;
+    if (assumedSpending) for (const t of tx) t.a = -Math.abs(t.a);
+    return { tx, skipped, assumedSpending };
+  }
+
+  let xlsxPromise = null;
+  function loadXLSX() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    if (!xlsxPromise) xlsxPromise = new Promise((res, rej) => {
+      const sc = document.createElement("script");
+      sc.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      sc.onload = () => (window.XLSX ? res(window.XLSX) : rej(new Error("load")));
+      sc.onerror = () => { xlsxPromise = null; rej(new Error("load")); };
+      document.head.appendChild(sc);
+    });
+    return xlsxPromise;
+  }
+  async function readStatement(file) {
+    const XLSX = await loadXLSX();
+    const isCSV = /\.csv$/i.test(file.name) || file.type === "text/csv";
+    const wb = isCSV
+      ? XLSX.read(await file.text(), { type: "string", cellDates: true })
+      : XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+    let best = null;
+    for (const name of wb.SheetNames) {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: "" });
+      if (!rows.length) continue;
+      const cand = { rows, ...analyze(rows) };
+      if (cand.map) {
+        cand.count = extract(rows, cand.headerRow, cand.map).tx.length;
+        if (!best || !best.map || cand.count > best.count) best = cand;
+      } else if (!best) best = cand;
+    }
+    return best;
+  }
+
+  /** Adds new transactions, skipping ones already imported (same date, amount and description). */
+  function mergeTx(list, { sample = false, dryRun = false } = {}) {
+    const key = (t) => `${t.d}|${t.a}|${t.t.toLowerCase()}`;
+    const have = {}, seen = {};
+    for (const t of spend.tx) have[key(t)] = (have[key(t)] || 0) + 1;
+    let added = 0, dup = 0;
+    for (const t of list) {
+      const k = key(t);
+      seen[k] = (seen[k] || 0) + 1;
+      if (seen[k] <= (have[k] || 0)) { dup++; continue; }
+      added++;
+      if (!dryRun) spend.tx.push({ id: uid(), d: t.d, t: t.t, a: t.a, c: categorize(t.t, t.a), ...(sample ? { s: 1 } : {}) });
+    }
+    return { added, dup };
+  }
+
+  // ---------- spending: numbers ----------
+  let spendMonth = null, openCat = null, confirmClear = false;
+  const months = () => [...new Set(spend.tx.map((t) => t.d.slice(0, 7)))].sort().reverse();
+  function monthName(ym, long) { const [y, m] = ym.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: long ? "long" : "short", year: "numeric" }); }
+  const fmtDay = (iso) => isoToDate(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  function monthStats(ym) {
+    const txs = spend.tx.filter((t) => t.d.startsWith(ym)).sort((a, b) => (a.d < b.d ? 1 : -1));
+    const byCat = {};
+    let spent = 0, income = 0, round = 0;
+    for (const t of txs) {
+      if (t.a > 0) { income += t.a; continue; }
+      const v = -t.a, c = effCat(t);
+      spent += v; byCat[c] = (byCat[c] || 0) + v;
+      if (c !== "transfers" && c !== "cash" && c !== "bills") round += Math.ceil(v / 10 - 1e-9) * 10 - v;
+    }
+    return { txs, spent, income, round, cats: Object.entries(byCat).sort((a, b) => b[1] - a[1]) };
+  }
+  function recurring() {
+    const g = {};
+    for (const t of spend.tx) {
+      if (t.a >= 0 || ["transfers", "cash", "groceries", "transport", "dining", "delivery"].includes(effCat(t))) continue;
+      const k = merchantKey(t.t), ym = t.d.slice(0, 7);
+      const e = (g[k] = g[k] || { months: {}, last: t });
+      e.months[ym] = (e.months[ym] || 0) - t.a;
+      if (t.d > e.last.d) e.last = t;
+    }
+    const out = [];
+    for (const e of Object.values(g)) {
+      const vals = Object.values(e.months);
+      if (vals.length < 2 || Math.max(...vals) > Math.min(...vals) * 1.25 + 1) continue;
+      out.push({ name: e.last.t, amount: -e.last.a });
+    }
+    return out.sort((a, b) => b.amount - a.amount).slice(0, 8);
+  }
+  const roundNice = (v) => (v >= 100 ? Math.round(v / 10) * 10 : Math.max(5, Math.round(v / 5) * 5));
+  function ideas(st, ym) {
+    const list = [], when = monthName(ym, true);
+    for (const [c, v] of st.cats) {
+      if (list.length >= 2) break;
+      if (!CATS[c] || !CATS[c].flex || v < 100) continue;
+      const save = roundNice(v * 0.25), nm = CATS[c].name.toLowerCase();
+      list.push({ title: `Spend a quarter less on ${nm}`, body: `You spent ${fmt(v, true)} on ${nm} in ${when}. A quarter less frees up about ${fmt(save, true)} a month.`, amount: save });
+    }
+    if (st.round >= 20) list.push({ title: "Round up your purchases", body: `Rounding each purchase up to the next ${fmt(10, true)} would have set aside ${fmt(st.round, true)} in ${when}.`, amount: roundNice(st.round) });
+    const left = st.income - st.spent;
+    if (st.income > 0 && left > 50) list.push({ title: "Keep half of what's left", body: `${fmt(left, true)} was left after spending in ${when}. If that's a typical month, setting aside half is ${fmt(roundNice(left / 2), true)} a month.`, amount: roundNice(left / 2) });
+    return list;
+  }
+
+  // ---------- spending: screen ----------
+  const COIN = '<svg viewBox="0 0 26 26" width="18" height="18" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="var(--gold)"/><circle cx="13" cy="13" r="7.5" fill="none" stroke="var(--gold-deep)" stroke-width="2"/></svg>';
+  function catOptions(sel) {
+    return Object.keys(CATS).concat("income").map((k) => `<option value="${k}"${k === sel ? " selected" : ""}>${esc(catName(k))}</option>`).join("");
+  }
+  function txItems(list, editable) {
+    return list.map((t) => `<li>
+        <span style="min-width:0"><span class="tx-desc" dir="auto">${esc(t.t)}</span><span class="tx-date num">${esc(fmtDay(t.d))}${editable ? "" : " · " + esc(catName(categorize(t.t, t.a)))}</span></span>
+        <span class="tx-amt num${t.a > 0 ? " pos" : ""}">${t.a > 0 ? "+" : "−"}${esc(fmt(Math.abs(t.a)))}</span>
+        ${editable ? `<select class="tx-cat" data-id="${esc(t.id)}" aria-label="Category for ${esc(t.t)}">${catOptions(effCat(t))}</select>` : ""}
+      </li>`).join("");
+  }
+  function renderSpending(body) {
+    const ms = months();
+    if (!ms.length) {
+      body.innerHTML = `
+        <div class="empty">
+          <svg width="84" height="84" viewBox="0 0 84 84" aria-hidden="true"><rect x="14" y="8" width="56" height="68" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/>
+            <rect x="24" y="22" width="36" height="5" rx="2.5" fill="var(--surface-2)"/><rect x="24" y="34" width="26" height="5" rx="2.5" fill="var(--surface-2)"/>
+            <rect x="24" y="46" width="32" height="5" rx="2.5" fill="var(--surface-2)"/><circle cx="62" cy="62" r="14" fill="var(--gold)"/><circle cx="62" cy="62" r="8.5" fill="none" stroke="var(--gold-deep)" stroke-width="2.4"/></svg>
+          <h2>See where your money goes</h2>
+          <p>Import your Al Rajhi statement. Savings Jar sorts your spending, spots subscriptions and suggests how much each jar can get every month.</p>
+          <div class="row">
+            <button class="btn primary" id="importBtn">Import statement</button>
+            <button class="btn" id="sampleBtn">Try a sample statement</button>
+          </div>
+        </div>`;
+      $("#importBtn").onclick = openImport;
+      $("#sampleBtn").onclick = loadSample;
+      return;
+    }
+    if (!spendMonth || !ms.includes(spendMonth)) spendMonth = ms[0];
+    const st = monthStats(spendMonth), left = st.income - st.spent;
+    const max = st.cats.length ? st.cats[0][1] : 1;
+    const rec = recurring(), idea = ideas(st, spendMonth);
+    const incomeTx = st.txs.filter((t) => t.a > 0);
+    body.innerHTML = `
+      ${spend.sample ? `<div class="notice"><span>This is a <b>sample statement</b>, not your real spending.</span><button class="link-btn" id="rmSample">Remove sample</button></div>` : ""}
+      <div class="months">${ms.map((m) => `<button class="mchip" data-m="${m}" aria-pressed="${m === spendMonth}">${esc(monthName(m))}</button>`).join("")}</div>
+      <div class="total">
+        <span class="label">Spent in ${esc(monthName(spendMonth, true))}</span>
+        <span class="total-amount num">${esc(fmt(st.spent))}</span>
+        <div class="inout num">
+          <span>Money in <b>${esc(fmt(st.income, true))}</b></span>
+          ${st.income > 0 ? (left >= 0 ? `<span>Left over <b class="pos">${esc(fmt(left, true))}</b></span>` : `<span>Spent more than came in by <b class="neg">${esc(fmt(-left, true))}</b></span>`) : ""}
+        </div>
+      </div>
+      ${idea.length ? `<h2 class="section-title">Ideas for your jars</h2><div class="ideas">${idea.map((x, i) => `
+        <div class="idea"><h3>${COIN}<span>${esc(x.title)}</span></h3><p>${esc(x.body)}</p>
+          <button class="btn" data-idea="${i}">Add ${esc(fmt(x.amount, true))} a month to a jar</button></div>`).join("")}</div>` : ""}
+      <h2 class="section-title">Where it went</h2>
+      <ul class="cats">
+        ${st.cats.map(([c, v]) => `<li>
+          <button class="cat-row" data-c="${c}" aria-expanded="${openCat === c}">
+            <span class="dot" style="background:${catColor(c)}"></span><span class="cat-name">${esc(catName(c))}</span>
+            <span class="cat-amt num">${esc(fmt(v, true))}</span>
+            <span class="cat-bar"><i style="width:${(v / max) * 100}%;background:${catColor(c)}"></i></span>
+          </button>
+          ${openCat === c ? `<ul class="txs">${txItems(st.txs.filter((t) => t.a < 0 && effCat(t) === c), true)}</ul>` : ""}
+        </li>`).join("")}
+        ${incomeTx.length ? `<li>
+          <button class="cat-row" data-c="income" aria-expanded="${openCat === "income"}">
+            <span class="dot" style="background:var(--gold)"></span><span class="cat-name">Money in</span>
+            <span class="cat-amt num pos">+${esc(fmt(st.income, true))}</span>
+          </button>
+          ${openCat === "income" ? `<ul class="txs">${txItems(incomeTx, true)}</ul>` : ""}
+        </li>` : ""}
+      </ul>
+      <p class="hint" style="margin-top:8px">Tap a group to see its transactions. If one is in the wrong group, change it, and future ones from the same place follow.</p>
+      ${rec.length ? `<h2 class="section-title">Repeats every month</h2>
+        <ul class="cats subs">${rec.map((r) => `<li><span class="tx-desc" dir="auto">${esc(r.name)}</span><span class="num cat-amt">${esc(fmt(r.amount, true))}</span></li>`).join("")}
+          <li class="subs-total"><span>Total a month</span><span class="num cat-amt">${esc(fmt(rec.reduce((s, r) => s + r.amount, 0), true))}</span></li></ul>
+        <p class="hint" style="margin-top:8px">Cancelling one you don't use is the easiest money to move into a jar.</p>` : ""}
+      <div class="spend-actions" id="spendActions">
+        <button class="btn primary" id="importBtn">Import another statement</button>
+        <button class="btn danger" id="clearSpend">Delete imported data</button>
+      </div>`;
+    body.querySelectorAll(".mchip").forEach((b) => (b.onclick = () => { spendMonth = b.dataset.m; openCat = null; renderHome(); }));
+    body.querySelectorAll(".cat-row").forEach((b) => (b.onclick = () => { openCat = openCat === b.dataset.c ? null : b.dataset.c; renderHome(); }));
+    body.querySelectorAll(".tx-cat").forEach((s) => (s.onchange = () => recategorize(s.dataset.id, s.value)));
+    body.querySelectorAll("[data-idea]").forEach((b) => (b.onclick = () => pickJarForPlan(idea[+b.dataset.idea].amount)));
+    $("#importBtn").onclick = openImport;
+    const rm = $("#rmSample");
+    if (rm) rm.onclick = () => { spend.tx = spend.tx.filter((t) => !t.s); spend.sample = false; commitSpend(); renderHome(); toast("Sample removed"); };
+    $("#clearSpend").onclick = () => {
+      $("#spendActions").innerHTML = `<div class="confirm-box" role="alert">
+          <p><strong>Delete all imported transactions?</strong> Your jars stay as they are.</p>
+          <div class="row"><button class="btn" id="keepSpend">Keep them</button><button class="btn danger-solid" id="reallyClear">Delete</button></div>
+        </div>`;
+      $("#keepSpend").onclick = () => renderHome();
+      $("#reallyClear").onclick = () => { spend = { v: 1, tx: [], rules: {}, sample: false }; commitSpend(); spendMonth = null; renderHome(); toast("Imported data deleted"); };
+      $("#reallyClear").focus();
+    };
+  }
+
+  function recategorize(id, cat) {
+    const tx = spend.tx.find((t) => t.id === id);
+    if (!tx) return;
+    const key = merchantKey(tx.t), sign = Math.sign(tx.a);
+    spend.rules[key] = cat;
+    let n = 0;
+    for (const t of spend.tx) if (merchantKey(t.t) === key && Math.sign(t.a) === sign) { t.c = cat; n++; }
+    commitSpend();
+    openCat = cat;
+    renderHome();
+    toast(n > 1 ? `Moved ${n} transactions to ${catName(cat)}` : `Moved to ${catName(cat)}`);
+  }
+
+  function setTab(t) {
+    tab = t;
+    try { localStorage.setItem("savings-jar-tab", t); } catch {}
+    renderHome();
+  }
+
+  function pickJarForPlan(amount) {
+    if (!state.jars.length) {
+      openSheet(`<div class="sheet-head"><button class="link-btn left" data-act="cancel">Cancel</button><h2>Add to a jar</h2><span></span></div>
+        <p>Make a jar first, then add this amount to its monthly plan.</p>
+        <button class="btn primary" style="width:100%" id="mkJar">Create a jar</button>`, (sheet) => {
+        sheet.querySelector('[data-act="cancel"]').onclick = closeSheet;
+        $("#mkJar", sheet).onclick = () => { closeSheet(); setTab("jars"); openEditor(null); };
+      });
+      return;
+    }
+    openSheet(`<div class="sheet-head"><button class="link-btn left" data-act="cancel">Cancel</button><h2>Add to a jar's plan</h2><span></span></div>
+      <p class="hint">Adds ${esc(fmt(amount, true))} a month to the jar's monthly plan, and the jar shows when you'll reach your goal. Savings Jar doesn't move money: set up a monthly transfer to your savings account in the Al Rajhi app to match.</p>
+      <div class="jar-pick">${[...state.jars].sort((a, b) => a.createdAt - b.createdAt).map((j) => `
+        <button class="pick" data-id="${esc(j.id)}">
+          <span class="pick-jar">${jarBlock(j.color, progress(j), j.emoji)}</span>
+          <span class="pick-text"><b>${esc(j.name)}</b><span class="hint num">${j.plan ? `Plan: ${esc(fmt(j.plan, true))} a month → ${esc(fmt(j.plan + amount, true))}` : `No plan yet → ${esc(fmt(amount, true))} a month`}</span></span>
+        </button>`).join("")}</div>`, (sheet) => {
+      sheet.querySelector('[data-act="cancel"]').onclick = closeSheet;
+      sheet.querySelectorAll(".pick").forEach((b) => (b.onclick = () => {
+        const j = jarById(b.dataset.id);
+        if (!j) return;
+        const before = j.plan || 0;
+        j.plan = Math.round((before + amount) * 100) / 100;
+        commit();
+        closeSheet();
+        const p = pace(j);
+        toast(`${j.name}: ${fmt(j.plan, true)} a month${p && p.good ? ". " + p.text.replace(/^On track: /, "") : ""}`, () => { j.plan = before; commit(); renderAll(); });
+      }));
+    });
+  }
+
+  function openImport() {
+    openSheet(`
+      <div class="sheet-head"><button class="link-btn left" data-act="cancel">Cancel</button><h2>Import statement</h2><span></span></div>
+      <div id="impBody">
+        <ol class="steps">
+          <li>In the Al Rajhi app, open the account or card you spend from and go to its statement.</li>
+          <li>Pick a period, for example last month, and export or share it as an <b>Excel</b> file. Save it to Files.</li>
+          <li>Choose that file here.</li>
+        </ol>
+        <label class="btn primary file-btn" for="stmtFile">Choose Excel file</label>
+        <input type="file" id="stmtFile" class="visually-hidden" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv">
+        <p class="hint" style="margin-top:12px">The file is read on this device. Savings Jar keeps only each transaction's date, description and amount, and hides long card or account numbers.</p>
+        <p class="hint err" id="impErr" role="alert" hidden></p>
+      </div>`, (sheet) => {
+      sheet.querySelector('[data-act="cancel"]').onclick = closeSheet;
+      $("#stmtFile", sheet).onchange = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const err = $("#impErr", sheet), lbl = sheet.querySelector(".file-btn");
+        err.hidden = true;
+        lbl.textContent = "Reading…";
+        try {
+          const res = await readStatement(file);
+          if (!res) throw new Error("empty");
+          if (res.map) showPreview(sheet, res, file.name); else showMapping(sheet, res, file.name);
+        } catch (ex) {
+          lbl.textContent = "Choose Excel file";
+          e.target.value = "";
+          err.textContent = ex && ex.message === "load"
+            ? "Couldn't load the Excel reader. Check your internet connection and try again."
+            : "That file couldn't be read. Choose the Excel (.xlsx or .xls) statement exported from your bank.";
+          err.hidden = false;
+        }
+      };
+    });
+  }
+
+  function showPreview(sheet, res, fileName) {
+    const ex = extract(res.rows, res.headerRow, res.map);
+    if (!ex.tx.length) { showMapping(sheet, res, fileName, "No transactions were found with those columns. Check which column is which."); return; }
+    const ds = ex.tx.map((t) => t.d).sort();
+    const spent = ex.tx.reduce((s, t) => s + (t.a < 0 ? -t.a : 0), 0), inc = ex.tx.reduce((s, t) => s + (t.a > 0 ? t.a : 0), 0);
+    const { dup } = mergeTx(ex.tx, { dryRun: true });
+    const long = (iso) => isoToDate(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    const box = $("#impBody", sheet);
+    box.innerHTML = `
+      <div class="preview-sum">
+        <span class="ps-file" dir="auto"></span>
+        <span class="ps-big num">${ex.tx.length} transactions</span>
+        <span class="hint num">${esc(long(ds[0]))} – ${esc(long(ds[ds.length - 1]))}</span>
+        <div class="inout num"><span>Spent <b>${esc(fmt(spent, true))}</b></span><span>Money in <b>${esc(fmt(inc, true))}</b></span></div>
+        ${dup ? `<p class="hint">${dup} of these ${dup === 1 ? "was" : "were"} imported before and will be skipped.</p>` : ""}
+        ${ex.assumedSpending ? `<p class="hint">Every amount in this file is positive, so they're all counted as spending.</p>` : ""}
+      </div>
+      ${state.currency !== "SAR" ? `<div class="toggle-row" style="margin-bottom:10px"><label for="impSar">Show amounts in Saudi riyals (SAR)</label><span class="switch"><input type="checkbox" id="impSar" role="switch" checked><i></i></span></div>` : ""}
+      <span class="label">First few</span>
+      <ul class="txs">${txItems([...ex.tx].sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, 5), false)}</ul>
+      <div class="row2"><button class="btn" id="impFix">Columns look wrong</button><button class="btn primary" id="impGo">Import</button></div>`;
+    box.querySelector(".ps-file").textContent = fileName;
+    $("#impFix", sheet).onclick = () => showMapping(sheet, res, fileName);
+    $("#impGo", sheet).onclick = () => {
+      const sar = $("#impSar", sheet);
+      if (sar && sar.checked) { state.currency = "SAR"; for (const k in fmtCache) delete fmtCache[k]; commit(); }
+      if (spend.sample) { spend.tx = spend.tx.filter((t) => !t.s); spend.sample = false; }
+      const r = mergeTx(ex.tx);
+      commitSpend();
+      closeSheet();
+      spendMonth = null; openCat = null; tab = "spend";
+      renderHome();
+      toast(r.added ? `Imported ${r.added} transactions` : "Nothing new: these were already imported");
+    };
+  }
+
+  function showMapping(sheet, res, fileName, msg) {
+    const head = res.rows[res.headerRow] || [], sample = res.rows[res.headerRow + 1] || [];
+    const width = Math.max(head.length, sample.length);
+    const show = (v) => (v instanceof Date ? v.toLocaleDateString() : String(v ?? "")).slice(0, 18);
+    const cols = Array.from({ length: width }, (_, i) => {
+      const h = show(head[i]).trim(), s = show(sample[i]).trim();
+      return { i, label: (h || `Column ${i + 1}`) + (s && s !== h ? ` (e.g. ${s})` : "") };
+    });
+    const m = res.map || {};
+    const sel = (id, label, cur, hint) => `<div class="field"><label for="${id}">${label}</label>
+      <select class="input" id="${id}"><option value="">None</option>${cols.map((c) => `<option value="${c.i}"${cur === c.i ? " selected" : ""}>${esc(c.label)}</option>`).join("")}</select>${hint ? `<span class="hint">${hint}</span>` : ""}</div>`;
+    const box = $("#impBody", sheet);
+    box.innerHTML = `
+      <p>${esc(msg || "Savings Jar couldn't tell which column is which in this file. Pick them below.")}</p>
+      <div class="map-grid">
+        ${sel("mDate", "Date", m.date)}
+        ${sel("mDesc", "Description", m.desc)}
+        ${sel("mOut", "Money out (debit)", m.out, "If your file has separate debit and credit columns.")}
+        ${sel("mIn", "Money in (credit)", m.in)}
+        ${sel("mAmt", "Single amount column", m.amount, "Use this instead if one column holds every amount, with a minus for money out.")}
+      </div>
+      <p class="hint err" id="mapErr" role="alert" hidden></p>
+      <button class="btn primary" style="width:100%" id="mapGo">Continue</button>`;
+    $("#mapGo", sheet).onclick = () => {
+      const v = (id) => { const x = $("#" + id, sheet).value; return x === "" ? undefined : Number(x); };
+      const map = { date: v("mDate"), desc: v("mDesc"), out: v("mOut"), in: v("mIn"), amount: v("mAmt") };
+      if (map.out != null || map.in != null) delete map.amount;
+      if (!validMap(map)) { const e = $("#mapErr", sheet); e.textContent = "Choose a date column, a description column and at least one amount column."; e.hidden = false; return; }
+      showPreview(sheet, { ...res, map }, fileName);
+    };
+  }
+
+  function loadSample() {
+    let seed = 11;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const pick = (a) => a[Math.floor(rnd() * a.length)];
+    const list = [], now = new Date();
+    for (let back = 2; back >= 1; back--) {
+      const first = new Date(now.getFullYear(), now.getMonth() - back, 1);
+      const Y = first.getFullYear(), M = first.getMonth() + 1, days = new Date(Y, M, 0).getDate();
+      const add = (d, t, a) => list.push({ d: `${Y}-${pad(M)}-${pad(Math.min(d, days))}`, t, a: Math.round(a * 100) / 100 });
+      const any = () => 1 + Math.floor(rnd() * days);
+      add(27, "SALARY / راتب", 11500); add(1, "EJAR RENT PAYMENT", -2500); add(3, "STC BILL PAYMENT", -230);
+      add(5, "NETFLIX.COM", -45); add(9, "SHAHID VIP", -30); add(12, "SEC ELECTRICITY SADAD", -(180 + rnd() * 60));
+      for (let i = 0; i < 11; i++) add(any(), pick(["HUNGERSTATION", "JAHEZ", "هنقرستيشن", "THE CHEFZ", "KEETA"]), -(35 + rnd() * 70));
+      for (let i = 0; i < 9; i++) add(any(), pick(["STARBUCKS RIYADH", "BARNS CAFE", "ALBAIK", "KUDU", "DR.CAFE COFFEE", "HALF MILLION"]), -(18 + rnd() * 45));
+      for (let i = 0; i < 5; i++) add(any(), pick(["PANDA RETAIL CO", "TAMIMI MARKETS", "DANUBE", "بنده"]), -(70 + rnd() * 260));
+      for (let i = 0; i < 6; i++) add(any(), pick(["ALDREES PETROLEUM", "SASCO STATION", "UBER *TRIP", "CAREEM"]), -(25 + rnd() * 95));
+      for (let i = 0; i < 3; i++) add(any(), pick(["AMAZON.SA", "NOON.COM", "JARIR BOOKSTORE", "SHEIN"]), -(60 + rnd() * 340));
+      add(any(), "NAHDI PHARMACY", -(30 + rnd() * 90)); add(any(), "VOX CINEMAS", -(90 + rnd() * 80));
+      add(any(), "ATM CASH WITHDRAWAL", -500); add(any(), "SARIE TRANSFER TO FRIEND", -300);
+    }
+    spend.tx = spend.tx.filter((t) => !t.s);
+    mergeTx(list, { sample: true });
+    spend.sample = true;
+    commitSpend();
+    spendMonth = null; openCat = null;
+    renderHome();
+    toast("Loaded a sample statement");
   }
 
   // ---------- toast ----------
@@ -920,8 +1557,10 @@ button { cursor: pointer; }
     else { if (openJarId) closeJar(); renderHome(); }
   }
   $("#settingsBtn").onclick = openSettings;
-  const local = readLocal();
-  if (local) state = local;
+  document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
+  { const l = normalize(SavingsSync.readLocal()); if (l) state = l; }
+  { const l = normalizeSpend(SpendSync.readLocal()); if (l) spend = l; }
+  try { const t = localStorage.getItem("savings-jar-tab"); if (t === "spend") tab = "spend"; } catch {}
   renderHome();
   Store.setMode("local");
   Store.init();
