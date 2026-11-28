@@ -285,6 +285,18 @@ button { cursor: pointer; }
 .pick-text b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-grid { display: grid; }
 
+.verdict { border-radius: 16px; padding: 14px; display: grid; gap: 8px; margin-bottom: 14px; }
+.verdict.ok { background: color-mix(in srgb, var(--good) 12%, var(--surface)); }
+.verdict.bad { background: color-mix(in srgb, var(--danger) 11%, var(--surface)); }
+.verdict p { margin: 0; }
+.v-head { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: center; }
+.v-head > div { display: grid; min-width: 0; }
+.v-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: .92rem; }
+.v-checks li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: center; }
+.checking { display: flex; align-items: center; gap: 12px; padding: 18px 4px; min-width: 0; overflow-wrap: anywhere; }
+.spinner { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--surface-2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 @media (max-width: 360px) {
   .grid { gap: 10px; }
   .card-jar, .card-jar .jar-wrap { height: 110px; }
@@ -292,6 +304,7 @@ button { cursor: pointer; }
 }
 @media (prefers-reduced-motion: reduce) {
   .wave, .coin.drop, .sheet, .scrim, .toast { animation: none !important; }
+  .spinner { animation-duration: 2.4s; }
   .liq, .bar > i { transition: none; }
 }
 </style>
@@ -1097,11 +1110,12 @@ button { cursor: pointer; }
     out: ["debit amount", "debit", "withdrawals", "withdrawal", "money out", "مدين", "المدين", "مسحوبات", "سحب", "خصم"],
     in: ["credit amount", "credit", "deposits", "deposit", "money in", "دائن", "الدائن", "إيداعات", "إيداع", "ايداع"],
     amount: ["transaction amount", "amount", "المبلغ", "مبلغ العملية", "القيمة"],
+    balance: ["running balance", "balance", "الرصيد", "رصيد"],
   };
   const cellText = (c) => (c instanceof Date ? "" : normDigits(c).toLowerCase().replace(/\s+/g, " ").trim());
   function matchHeader(row) {
     const cells = row.map(cellText), used = new Set(), map = {};
-    for (const field of ["type", "date", "desc", "out", "in", "amount"]) {
+    for (const field of ["type", "date", "desc", "out", "in", "amount", "balance"]) {
       let found = -1;
       for (const exact of [true, false]) {
         for (const syn of SYN[field]) {
@@ -1151,7 +1165,7 @@ button { cursor: pointer; }
       }
       if (!d || !isFinite(amt) || Math.abs(amt) < 0.005 || SKIP.test(cellText(desc))) { skipped++; continue; }
       if (amt < 0) anyNeg = true;
-      tx.push({ d, t: cleanDesc(desc) || "Transaction", a: Math.round(amt * 100) / 100 });
+      tx.push({ d, t: cleanDesc(desc) || "Transaction", a: Math.round(amt * 100) / 100, b: map.balance != null ? toNumber(r[map.balance]) : NaN });
     }
     // One amount column, no minus signs and no type column: the amounts are spending.
     const assumedSpending = map.amount != null && map.type == null && !anyNeg && tx.length > 0;
@@ -1171,28 +1185,164 @@ button { cursor: pointer; }
     });
     return xlsxPromise;
   }
-  async function readStatement(file) {
-    if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
-      const tx = await readPDF(file);
-      if (!tx) throw new Error("pdf-layout");
-      return { pdf: true, tx };
+  // ---------- spending: checking that a file is a bank statement ----------
+  const MAX_FILE = 20 * 1024 * 1024;
+  const EXPORT_HELP = "In your bank's app, open the account statement and export or share it as a PDF or Excel file, then choose that file here.";
+  const NOT_STATEMENT = "This isn't a bank statement";
+  const STATEMENT_WORDS = /statement|كشف حساب|account (number|no)|\biban\b|opening balance|closing balance|starting balance|end balance|رقم الحساب|آيبان|ايبان|الرصيد/i;
+  const BANKS = [
+    ["The Saudi National Bank", /saudi national bank|\bsnb\b|alahli|البنك الأهلي|الأهلي السعودي/gi],
+    ["Al Rajhi Bank", /al ?rajhi|الراجحي/gi],
+    ["Riyad Bank", /riyad bank|بنك الرياض/gi],
+    ["SAB", /saudi awwal|\bsabb?\b|saudi british|البنك السعودي الأول/gi],
+    ["Arab National Bank", /arab national bank|البنك العربي الوطني/gi],
+    ["Alinma Bank", /alinma|مصرف الإنماء|بنك الإنماء/gi],
+    ["Bank Albilad", /albilad|al bilad|بنك البلاد/gi],
+    ["Banque Saudi Fransi", /saudi fransi|السعودي الفرنسي/gi],
+    ["Bank AlJazira", /aljazira|al jazira|بنك الجزيرة/gi],
+    ["Saudi Investment Bank", /saudi investment bank|السعودي للاستثمار/gi],
+    ["STC Bank", /stc bank|بنك اس تي سي/gi],
+    ["D360 Bank", /d360/gi],
+  ];
+  function detectBank(text) {
+    let best = null, n = 0;
+    for (const [name, re] of BANKS) { const c = (text.match(re) || []).length; if (c > n) { n = c; best = name; } }
+    return best;
+  }
+  /** Share of rows whose running balance equals the previous balance plus the row's amount (either direction). */
+  function balanceCheck(list) {
+    const xs = list.filter((t) => isFinite(t.b));
+    if (xs.length < 3) return null;
+    let fwd = 0, back = 0;
+    for (let i = 1; i < xs.length; i++) {
+      if (Math.abs(xs[i - 1].b + xs[i].a - xs[i].b) < 0.011) fwd++;
+      if (Math.abs(xs[i].b + xs[i - 1].a - xs[i - 1].b) < 0.011) back++;
     }
+    return Math.max(fwd, back) / (xs.length - 1);
+  }
+
+  /** Works out what kind of file this is from its first bytes, not its name. */
+  async function sniff(file) {
+    if (!file.size) return { kind: "empty" };
+    const head = new Uint8Array(await file.slice(0, 4096).arrayBuffer());
+    const ascii = Array.from(head.slice(0, 1024), (c) => (c >= 32 && c < 127 ? String.fromCharCode(c) : " ")).join("");
+    const at = (...bs) => bs.every((v, i) => head[i] === v);
+    const box = ascii.slice(4, 12);
+    if (ascii.includes("%PDF-")) return { kind: "pdf", label: "PDF" };
+    if (at(0x50, 0x4b, 0x03, 0x04)) {
+      const all = new TextDecoder("latin1").decode(new Uint8Array(await file.arrayBuffer()));
+      if (/xl\/workbook|xl\/worksheets/.test(all)) return { kind: "sheet", label: "Excel workbook" };
+      if (all.includes("opendocument.spreadsheet")) return { kind: "sheet", label: "spreadsheet" };
+      if (all.includes("word/document")) return { kind: "other", label: "Word document" };
+      if (all.includes("ppt/presentation")) return { kind: "other", label: "PowerPoint presentation" };
+      if (all.includes("opendocument.text")) return { kind: "other", label: "text document" };
+      return { kind: "other", label: "ZIP archive" };
+    }
+    if (at(0xd0, 0xcf, 0x11, 0xe0)) return { kind: "ole", label: "older Office file" };
+    if (at(0x89, 0x50, 0x4e, 0x47)) return { kind: "image", label: "PNG image" };
+    if (at(0xff, 0xd8, 0xff)) return { kind: "image", label: "JPEG photo" };
+    if (ascii.startsWith("GIF8")) return { kind: "image", label: "GIF image" };
+    if (ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WEBP") return { kind: "image", label: "WebP image" };
+    if (/^ftyp(heic|heix|hevc|heis|mif1|msf1|avif)/.test(box)) return { kind: "image", label: "HEIC photo" };
+    if (box.startsWith("ftyp") || at(0x1a, 0x45, 0xdf, 0xa3)) return { kind: "other", label: "video" };
+    if (ascii.startsWith("ID3") || ascii.startsWith("OggS") || ascii.startsWith("fLaC") || (ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WAVE") || (head[0] === 0xff && (head[1] & 0xe0) === 0xe0)) return { kind: "other", label: "audio file" };
+    if (ascii.startsWith("Rar!") || at(0x37, 0x7a, 0xbc, 0xaf) || at(0x1f, 0x8b)) return { kind: "other", label: "compressed archive" };
+    if (ascii.startsWith("{\\rtf")) return { kind: "other", label: "RTF document" };
+    if (at(0x4d, 0x5a) || at(0x7f, 0x45, 0x4c, 0x46) || at(0xcf, 0xfa, 0xed, 0xfe)) return { kind: "other", label: "program file" };
+    if (head.slice(0, 1024).some((c) => c === 0 || (c < 9) || (c > 13 && c < 27))) return { kind: "other", label: "file type Savings Jar can't open" };
+    const text = await decodeText(file, 65536);
+    if (/^\s*<(!doctype html|html|table)/i.test(text)) return { kind: "html", label: "web page" }; // some banks export "Excel" as an HTML table
+    if (/^\s*[{[]/.test(text)) return { kind: "other", label: "data file (JSON)" };
+    return { kind: "text", label: "text file" };
+  }
+  async function decodeText(file, limit) {
+    const buf = new Uint8Array(await (limit ? file.slice(0, limit) : file).arrayBuffer());
+    if (buf[0] === 0xff && buf[1] === 0xfe) return new TextDecoder("utf-16le").decode(buf);
+    try { return new TextDecoder("utf-8", { fatal: true }).decode(buf, { stream: !!limit }); }
+    catch { return new TextDecoder("windows-1256").decode(buf); } // older Arabic exports
+  }
+  function looksTabular(rows) {
+    let n = 0;
+    for (const r of rows.slice(0, 200)) {
+      if (!r) continue;
+      const di = r.findIndex((c) => c !== "" && toISO(c, "dmy"));
+      if (di >= 0 && r.some((c, i) => i !== di && typeof c !== "boolean" && c !== "" && isFinite(toNumber(c)))) n++;
+      if (n >= 2) return true;
+    }
+    return false;
+  }
+
+  const reject = (title, reason, help, extra) => ({ ok: false, title, reason, help, ...extra });
+  function judge({ tx, headText, bal, res, canMap }) {
+    const bank = detectBank(headText);
+    const words = STATEMENT_WORDS.test(headText);
+    if (!tx) {
+      return reject(NOT_STATEMENT,
+        bank || words
+          ? `This looks like ${bank ? "a document from " + bank : "an account document"}, but Savings Jar couldn't find a table of transactions in it.`
+          : "Savings Jar couldn't find a table of dated transactions with amounts in this file.",
+        bank || words ? "Try your bank's other export format: Excel instead of PDF, or the other way round." : EXPORT_HELP,
+        { canMap, res });
+    }
+    if (!tx.length) return reject(NOT_STATEMENT, "The file has transaction columns, but no rows with both a date and an amount.", "Check that the statement covers a period with transactions.", { canMap, res });
+    const balOk = bal !== null && bal >= 0.8;
+    if (!bank && !words && !balOk && tx.length < 3) return reject(NOT_STATEMENT, "It has a few dated amounts, but nothing else that marks it as a bank statement.", EXPORT_HELP, { canMap, res });
+    const checks = [`Table of ${tx.length} dated transaction${tx.length === 1 ? "" : "s"} found`];
+    if (balOk) checks.push("Running balances add up row by row");
+    if (bank) checks.push(`Issued by ${bank}`);
+    else if (words) checks.push("Marked as an account statement");
+    const warn = bal !== null && !balOk ? "Some running balances in this file don't add up. Check the totals against your bank's app." : "";
+    return { ok: true, checks, warn, bank, res };
+  }
+
+  async function analyzeFile(file) {
+    if (file.size > MAX_FILE) return reject("This file is too large", `It's ${(file.size / 1048576).toFixed(0)} MB. Bank statements are usually well under 5 MB.`, "Export a shorter period, for example one month.");
+    const kind = await sniff(file);
+    if (kind.kind === "empty") return reject("This file is empty", "There's nothing in it to read.", EXPORT_HELP);
+    if (kind.kind === "image") return reject(NOT_STATEMENT, `This is a ${kind.label}. Savings Jar can't read amounts from photos or screenshots.`, EXPORT_HELP);
+    if (kind.kind === "other") return reject(NOT_STATEMENT, `This is a ${kind.label}, not a bank statement.`, EXPORT_HELP);
+    if (kind.kind === "pdf") return analyzePDF(file);
+    return analyzeSheet(file, kind);
+  }
+
+  async function analyzePDF(file) {
+    let r;
+    try { r = await readPDF(file); }
+    catch (e) {
+      if (e && e.message === "load") throw e;
+      if (e && e.name === "PasswordException") return reject("This PDF is locked", "It's protected with a password, so Savings Jar can't read it.", "Export the statement again without a password.");
+      return reject("This PDF can't be opened", "The file is damaged or isn't a standard PDF.", EXPORT_HELP);
+    }
+    if (!r.anyText) return reject(NOT_STATEMENT, "This PDF only contains pictures, like a scan or a photo, so its amounts can't be read.", EXPORT_HELP);
+    return judge({ tx: r.found ? r.tx : null, headText: r.headText, bal: r.found ? balanceCheck(r.tx) : null, res: { pdf: true, tx: r.tx } });
+  }
+
+  async function analyzeSheet(file, kind) {
     const XLSX = await loadXLSX();
-    const isCSV = /\.csv$/i.test(file.name) || file.type === "text/csv";
-    const wb = isCSV
-      ? XLSX.read(await file.text(), { type: "string", cellDates: true })
-      : XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+    let wb;
+    try {
+      wb = kind.kind === "text" || kind.kind === "html"
+        ? XLSX.read(await decodeText(file), { type: "string", cellDates: true })
+        : XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+    } catch (e) {
+      if (/password|encrypt/i.test(String(e && e.message))) return reject("This spreadsheet is locked", "It's protected with a password, so Savings Jar can't read it.", "Export the statement again without a password.");
+      return reject(NOT_STATEMENT, kind.kind === "ole" ? "This is an older Word or PowerPoint file, or a damaged spreadsheet." : `This ${kind.label} couldn't be opened as a table.`, EXPORT_HELP);
+    }
     let best = null;
     for (const name of wb.SheetNames) {
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: "" });
       if (!rows.length) continue;
       const cand = { rows, ...analyze(rows) };
       if (cand.map) {
-        cand.count = extract(rows, cand.headerRow, cand.map).tx.length;
-        if (!best || !best.map || cand.count > best.count) best = cand;
+        cand.ex = extract(rows, cand.headerRow, cand.map);
+        if (!best || !best.map || cand.ex.tx.length > best.ex.tx.length) best = cand;
       } else if (!best) best = cand;
     }
-    return best;
+    if (!best) return reject(NOT_STATEMENT, "This file has no rows of data.", EXPORT_HELP);
+    const headText = best.rows.slice(0, best.map ? best.headerRow + 1 : 20).flat().filter((c) => typeof c === "string").join(" ").normalize("NFKC");
+    const canMap = looksTabular(best.rows);
+    if (!best.map) return judge({ tx: null, headText, bal: null, res: best, canMap });
+    return judge({ tx: best.ex.tx, headText, bal: balanceCheck(best.ex.tx), res: best, canMap });
   }
 
   // PDF statements: rebuild the transaction table from text positions.
@@ -1254,10 +1404,12 @@ button { cursor: pointer; }
     const lib = await loadPDFJS();
     const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false, disableFontFace: true }).promise;
     const out = [];
-    let found = false;
+    let found = false, anyText = false, headText = "";
     for (let n = 1; n <= doc.numPages; n++) {
       const tc = await (await doc.getPage(n)).getTextContent();
       const items = tc.items.filter((it) => it.str && it.str.trim()).map((it) => ({ s: it.str.normalize("NFKC").trim(), x: it.transform[4], y: it.transform[5] }));
+      if (items.length) anyText = true;
+      if (n === 1) headText = items.map((it) => it.s).join(" ").slice(0, 8000);
       const lines = {};
       for (const it of items) (lines[Math.round(it.y)] = lines[Math.round(it.y)] || []).push(it);
       let head = null;
@@ -1277,7 +1429,7 @@ button { cursor: pointer; }
       const order = dateOrder(anchors.map((a) => a.s));
       anchors.forEach((an, i) => {
         const top = an.y + 3, bottom = i + 1 < anchors.length ? anchors[i + 1].y + 3 : -Infinity;
-        const cell = { type: [], desc: [], debit: [], credit: [], amount: [] };
+        const cell = { type: [], desc: [], debit: [], credit: [], amount: [], balance: [] };
         for (const it of rows) if (it.y <= top && it.y > bottom) { const c = colOf(it.x); if (cell[c]) cell[c].push(it); }
         const asLines = (arr) => {
           const g = {};
@@ -1292,10 +1444,10 @@ button { cursor: pointer; }
         const d = toISO(an.s, order);
         if (!d || !isFinite(a) || Math.abs(a) < 0.005) return;
         const info = describeRow(asLines(cell.type).join(" "), asLines(cell.desc), a);
-        out.push({ d, t: cleanDesc(info.t) || "Transaction", a: Math.round(a * 100) / 100, c: info.c });
+        out.push({ d, t: cleanDesc(info.t) || "Transaction", a: Math.round(a * 100) / 100, c: info.c, b: num(cell.balance) });
       });
     }
-    return found ? out : null;
+    return { found, tx: out, anyText, headText };
   }
 
   /** Adds new transactions, skipping ones already imported (same date, amount and description). */
@@ -1518,48 +1670,62 @@ button { cursor: pointer; }
     });
   }
 
+  const ICON_OK = '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="var(--good)"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICON_BAD = '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="var(--danger)"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
+  const ICON_TICK = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="var(--good)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
   function openImport() {
     openSheet(`
       <div class="sheet-head"><button class="link-btn left" data-act="cancel">Cancel</button><h2>Import statement</h2><span></span></div>
+      <input type="file" id="stmtFile" class="visually-hidden" aria-label="Statement file">
       <div id="impBody">
         <ol class="steps">
           <li>In your bank's app (Al Rajhi, SNB AlAhli and others), open the statement for the account or card you spend from.</li>
           <li>Pick a period, for example last month, and export or share it as a <b>PDF</b> or <b>Excel</b> file. Save it to Files.</li>
-          <li>Choose that file here.</li>
+          <li>Choose that file here. Savings Jar checks that it's a bank statement before importing anything.</li>
         </ol>
         <label class="btn primary file-btn" for="stmtFile">Choose statement file</label>
-        <input type="file" id="stmtFile" class="visually-hidden" accept=".pdf,application/pdf,.xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv">
         <p class="hint" style="margin-top:12px">The file is read on this device. Savings Jar keeps only each transaction's date, description and amount, and hides long card or account numbers.</p>
-        <p class="hint err" id="impErr" role="alert" hidden></p>
       </div>`, (sheet) => {
       sheet.querySelector('[data-act="cancel"]').onclick = closeSheet;
       $("#stmtFile", sheet).onchange = async (e) => {
         const file = e.target.files && e.target.files[0];
+        e.target.value = "";
         if (!file) return;
-        const err = $("#impErr", sheet), lbl = sheet.querySelector(".file-btn");
-        err.hidden = true;
-        lbl.textContent = "Reading…";
-        try {
-          const res = await readStatement(file);
-          if (!res) throw new Error("empty");
-          if (res.map || res.pdf) showPreview(sheet, res, file.name); else showMapping(sheet, res, file.name);
-        } catch (ex) {
-          lbl.textContent = "Choose statement file";
-          e.target.value = "";
-          err.textContent = ex && ex.message === "load"
-            ? "Couldn't load the file reader. Check your internet connection and try again."
-            : ex && ex.message === "pdf-layout"
-              ? "Savings Jar couldn't find a transaction table in this PDF. Try the Excel export from your bank instead."
-              : "That file couldn't be read. Choose the PDF or Excel statement exported from your bank.";
-          err.hidden = false;
+        const box = $("#impBody", sheet);
+        box.innerHTML = `<div class="checking" role="status"><span class="spinner" aria-hidden="true"></span><span>Checking <b class="ps-file" dir="auto"></b>…</span></div>`;
+        box.querySelector(".ps-file").textContent = file.name;
+        let v;
+        try { v = await analyzeFile(file); }
+        catch (ex) {
+          v = ex && ex.message === "load"
+            ? reject("Couldn't check the file", "The file reader didn't load.", "Check your internet connection and try again.")
+            : reject("Couldn't check the file", "Something went wrong while reading it.", EXPORT_HELP);
         }
+        if (!sheet.isConnected) return;
+        if (v.ok) showPreview(sheet, v.res, file.name, v); else showRejected(sheet, v, file.name);
       };
     });
   }
 
-  function showPreview(sheet, res, fileName) {
+  function showRejected(sheet, v, fileName) {
+    const box = $("#impBody", sheet);
+    box.innerHTML = `
+      <div class="verdict bad" role="alert">
+        <div class="v-head">${ICON_BAD}<div><b>${esc(v.title)}</b><span class="ps-file" dir="auto"></span></div></div>
+        <p>${esc(v.reason)}</p>
+        <p class="hint">${esc(v.help)}</p>
+      </div>
+      <label class="btn primary file-btn" for="stmtFile">Choose another file</label>
+      ${v.canMap ? `<button class="btn ghost" id="mapAnyway" style="width:100%;margin-top:8px">It is a bank statement: pick the columns</button>` : ""}`;
+    box.querySelector(".ps-file").textContent = fileName;
+    const m = $("#mapAnyway", sheet);
+    if (m) m.onclick = () => showMapping(sheet, v.res, fileName, "Pick which column holds each part of the transactions.");
+  }
+
+  function showPreview(sheet, res, fileName, verdict) {
     const ex = res.pdf ? { tx: res.tx, assumedSpending: false } : extract(res.rows, res.headerRow, res.map);
-    if (res.pdf && !ex.tx.length) { const e = $("#impBody", sheet); e.innerHTML = `<p class="hint err">No transactions were found in this PDF.</p>`; return; }
+    if (!verdict) verdict = { checks: [`Table of ${ex.tx.length} dated transactions found`, "Columns chosen by you"], warn: "" };
     if (!ex.tx.length) { showMapping(sheet, res, fileName, "No transactions were found with those columns. Check which column is which."); return; }
     const ds = ex.tx.map((t) => t.d).sort();
     const spent = ex.tx.reduce((s, t) => s + (t.a < 0 && t.c !== "own" ? -t.a : 0), 0), inc = ex.tx.reduce((s, t) => s + (t.a > 0 && t.c !== "own" ? t.a : 0), 0);
@@ -1567,8 +1733,12 @@ button { cursor: pointer; }
     const long = (iso) => isoToDate(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
     const box = $("#impBody", sheet);
     box.innerHTML = `
+      <div class="verdict ok">
+        <div class="v-head">${ICON_OK}<div><b>Bank statement accepted</b><span class="ps-file" dir="auto"></span></div></div>
+        <ul class="v-checks">${verdict.checks.map((c) => `<li>${ICON_TICK}<span>${esc(c)}</span></li>`).join("")}</ul>
+        ${verdict.warn ? `<p class="hint err">${esc(verdict.warn)}</p>` : ""}
+      </div>
       <div class="preview-sum">
-        <span class="ps-file" dir="auto"></span>
         <span class="ps-big num">${ex.tx.length} transactions</span>
         <span class="hint num">${esc(long(ds[0]))} – ${esc(long(ds[ds.length - 1]))}</span>
         <div class="inout num"><span>Spent <b>${esc(fmt(spent, true))}</b></span><span>Money in <b>${esc(fmt(inc, true))}</b></span></div>
@@ -1623,7 +1793,7 @@ button { cursor: pointer; }
       const map = { date: v("mDate"), desc: v("mDesc"), out: v("mOut"), in: v("mIn"), amount: v("mAmt") };
       if (map.out != null || map.in != null) delete map.amount;
       if (!validMap(map)) { const e = $("#mapErr", sheet); e.textContent = "Choose a date column, a description column and at least one amount column."; e.hidden = false; return; }
-      showPreview(sheet, { ...res, map }, fileName);
+      showPreview(sheet, { ...res, map }, fileName, null);
     };
   }
 
