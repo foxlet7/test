@@ -1,0 +1,929 @@
+<title>Savings Jar</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one phone-width column; home = total + grid of jars, detail = one big jar, sheets slide up from the bottom. */
+:root {
+  --bg: #EDF1F7;
+  --surface: #FFFFFF;
+  --surface-2: #E2E8F1;
+  --ink: #14213D;
+  --muted: #5A6780;
+  --line: rgba(20, 33, 61, .10);
+  --gold: #F2A91B;
+  --gold-deep: #C9840A;
+  --accent: #2F6FE4;
+  --on-accent: #FFFFFF;
+  --danger: #CF3F3F;
+  --scrim: rgba(10, 16, 30, .42);
+  --shadow: 0 1px 2px rgba(20, 33, 61, .06), 0 6px 20px rgba(20, 33, 61, .06);
+  --font-display: "Bricolage Grotesque", "Figtree", system-ui, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C1322; --surface: #162036; --surface-2: #212C46; --ink: #E9EFF9; --muted: #95A2BA;
+    --line: rgba(233, 239, 249, .10); --gold: #F5B83A; --gold-deep: #D99A1E; --accent: #5C8EF5; --on-accent: #0C1322;
+    --danger: #F07474; --scrim: rgba(0, 0, 0, .6); --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0C1322; --surface: #162036; --surface-2: #212C46; --ink: #E9EFF9; --muted: #95A2BA;
+  --line: rgba(233, 239, 249, .10); --gold: #F5B83A; --gold-deep: #D99A1E; --accent: #5C8EF5; --on-accent: #0C1322;
+  --danger: #F07474; --scrim: rgba(0, 0, 0, .6); --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+.app { max-width: 560px; margin: 0 auto; padding-block: 12px 48px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Header */
+.head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 8px 16px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 1.5rem; letter-spacing: -.01em; }
+.brand-coin { width: 26px; height: 26px; }
+.icon-btn {
+  width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface);
+  display: grid; place-items: center; color: var(--ink);
+}
+.icon-btn svg { width: 20px; height: 20px; }
+
+/* Total */
+.total { background: var(--surface); border-radius: 22px; padding: 18px 20px; box-shadow: var(--shadow); display: grid; gap: 6px; }
+.label { font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.total-amount { font-family: var(--font-display); font-weight: 800; font-size: 2.6rem; line-height: 1.05; letter-spacing: -.02em; }
+.total-sub { color: var(--muted); font-size: .92rem; }
+.bar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.bar > i { display: block; height: 100%; border-radius: inherit; background: var(--gold); transition: width .6s ease; }
+
+/* Grid of jars */
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+.card {
+  background: var(--surface); border: 0; border-radius: 22px; padding: 14px; text-align: left; box-shadow: var(--shadow);
+  display: grid; gap: 6px; min-width: 0; position: relative; transition: transform .15s ease;
+}
+.card:active { transform: scale(.97); }
+.card-jar { position: relative; height: 128px; display: grid; place-items: center; }
+.card-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-money { font-size: .88rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-money b { color: var(--ink); font-weight: 600; }
+.card .bar { height: 6px; }
+.badge {
+  position: absolute; top: 10px; right: 10px; font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 99px; background: var(--gold); color: #3A2600;
+}
+.card-new {
+  border: 2px dashed var(--line); background: transparent; box-shadow: none; display: grid; place-items: center; gap: 8px;
+  color: var(--muted); font-weight: 600; min-height: 220px; text-align: center;
+}
+.card-new .plus { width: 44px; height: 44px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; font-size: 1.6rem; color: var(--ink); box-shadow: var(--shadow); }
+
+/* Jar drawing */
+.jar-wrap { position: relative; height: 100%; aspect-ratio: 100 / 130; max-width: 100%; }
+.card-jar .jar-wrap { height: 128px; }
+.hero .jar-wrap { height: 270px; }
+.preview .jar-wrap { height: 130px; }
+.jar { width: 100%; height: 100%; display: block; overflow: visible; }
+.jar-emoji { position: absolute; left: 50%; top: 60%; transform: translate(-50%, -50%); font-size: 2rem; line-height: 1; pointer-events: none; }
+.liq { transition: transform 1s cubic-bezier(.3, 1.35, .5, 1); }
+.wave { animation: slosh 3.4s linear infinite; }
+.w2 { animation-duration: 2.4s; animation-direction: reverse; }
+@keyframes slosh { to { transform: translateX(-50px); } }
+
+/* Empty state */
+.empty { text-align: center; padding: 28px 20px 12px; display: grid; justify-items: center; gap: 12px; }
+.empty .jar-wrap { height: 150px; }
+.empty h2 { font-family: var(--font-display); font-size: 1.6rem; margin: 6px 0 0; text-wrap: balance; }
+.empty p { color: var(--muted); margin: 0; max-width: 34ch; }
+.empty .row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 6px; }
+
+/* Buttons */
+.btn {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 14px; padding: 12px 18px;
+  font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px;
+  transition: transform .12s ease, opacity .2s;
+}
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+.btn.primary { background: var(--jar, var(--accent)); border-color: transparent; color: var(--jar-on, var(--on-accent)); }
+.btn.danger { color: var(--danger); }
+.btn.danger-solid { background: var(--danger); color: #fff; border-color: transparent; }
+.btn.ghost { background: transparent; border-color: transparent; }
+
+/* Detail */
+.topbar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding-block: 6px 4px; }
+.back { border: 0; background: transparent; color: var(--jar-text, var(--accent)); font-weight: 700; display: inline-flex; align-items: center; gap: 2px; padding: 8px 4px; font-size: 1rem; }
+.back svg { width: 20px; height: 20px; }
+.tb-title { text-align: center; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hero { position: relative; height: 270px; display: grid; place-items: center; margin-top: 4px; }
+.hero .jar-emoji { font-size: 3.4rem; }
+.coin {
+  position: absolute; left: 50%; top: 0; width: 38px; height: 38px; margin-left: -19px; border-radius: 50%; opacity: 0; pointer-events: none;
+  background: radial-gradient(circle at 35% 30%, #FFE7A3, var(--gold) 55%, var(--gold-deep));
+  box-shadow: inset 0 0 0 3px rgba(150, 95, 0, .35), inset 0 0 0 8px rgba(255, 255, 255, .18);
+}
+.coin.drop { animation: drop .7s cubic-bezier(.5, 0, .9, .5) forwards; }
+@keyframes drop {
+  0% { transform: translateY(-30px) rotateY(0) scale(1); opacity: 1; }
+  75% { opacity: 1; }
+  100% { transform: translateY(150px) rotateY(540deg) scale(.6); opacity: 0; }
+}
+.figures { text-align: center; display: grid; gap: 2px; margin-top: 8px; }
+.big-amount { font-family: var(--font-display); font-weight: 800; font-size: 3rem; line-height: 1.05; letter-spacing: -.02em; }
+.of { color: var(--muted); font-weight: 600; }
+.pace { font-size: .92rem; color: var(--muted); margin-top: 6px; text-wrap: balance; }
+.pace.done { color: var(--jar-text, var(--accent)); font-weight: 700; }
+.quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 18px; }
+.chip {
+  border: 0; border-radius: 14px; min-height: 46px; font-weight: 700; padding: 8px 4px;
+  background: var(--jar-soft, var(--surface-2)); color: var(--jar-text, var(--ink));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: transform .12s ease;
+}
+.chip:active { transform: scale(.94); }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.section-title { font-family: var(--font-display); font-weight: 600; font-size: 1.2rem; margin: 28px 0 10px; }
+.history { list-style: none; margin: 0; padding: 0; background: var(--surface); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; }
+.history li { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto 32px; align-items: center; gap: 12px; padding: 12px 10px 12px 14px; }
+.history li + li { border-top: 1px solid var(--line); }
+.h-icon { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--jar-soft, var(--surface-2)); color: var(--jar-text, var(--accent)); }
+.h-icon.out { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.h-icon svg { width: 18px; height: 18px; }
+.h-note { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h-date { font-size: .8rem; color: var(--muted); }
+.h-amt { font-weight: 700; }
+.h-amt.out { color: var(--danger); }
+.h-del { border: 0; background: transparent; color: var(--muted); width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; }
+.h-del svg { width: 16px; height: 16px; }
+.history .none { display: block; color: var(--muted); padding: 18px; }
+
+/* Sheets */
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 40; display: flex; align-items: flex-end; justify-content: center; animation: fade .2s ease; }
+.sheet {
+  width: 100%; max-width: 560px; max-height: 92%; overflow-y: auto; background: var(--surface); border-radius: 24px 24px 0 0;
+  padding: 10px max(18px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px));
+  animation: rise .28s cubic-bezier(.2, .9, .3, 1);
+}
+.grabber { width: 40px; height: 5px; border-radius: 99px; background: var(--surface-2); margin: 0 auto 10px; }
+.sheet-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin-bottom: 14px; }
+.sheet-head h2 { margin: 0; font-size: 1.05rem; text-align: center; }
+.sheet-head .left { justify-self: start; }
+.sheet-head .right { justify-self: end; }
+.link-btn { border: 0; background: transparent; color: var(--jar-text, var(--accent)); font-weight: 700; padding: 8px 4px; }
+.link-btn:disabled { opacity: .35; cursor: not-allowed; }
+@keyframes rise { from { transform: translateY(100%); } }
+@keyframes fade { from { opacity: 0; } }
+.field { display: grid; gap: 6px; margin-bottom: 16px; }
+.field > label, .field > .label { font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.input {
+  width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 14px; padding: 12px 14px; min-height: 48px; font-size: 16px;
+}
+.money-input { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--bg); border-radius: 16px; padding: 6px 16px; }
+.money-input span { font-family: var(--font-display); font-size: 1.8rem; color: var(--muted); font-weight: 600; }
+.money-input input { border: 0; background: transparent; width: 100%; min-width: 0; font-family: var(--font-display); font-weight: 800; font-size: 2.2rem; padding: 4px 0; outline: none; }
+.money-input:focus-within { border-color: var(--jar, var(--accent)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--jar, var(--accent)) 25%, transparent); }
+.hint { font-size: .85rem; color: var(--muted); }
+.hint.err { color: var(--danger); font-weight: 600; }
+.emoji-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+.emoji-grid button { aspect-ratio: 1; border: 0; border-radius: 12px; background: transparent; font-size: 1.45rem; padding: 0; }
+.emoji-grid button[aria-pressed="true"] { background: var(--jar-soft, var(--surface-2)); box-shadow: inset 0 0 0 2px var(--jar, var(--accent)); }
+.swatches { display: flex; flex-wrap: wrap; gap: 12px; }
+.swatches button { width: 38px; height: 38px; border-radius: 50%; border: 0; padding: 0; }
+.swatches button[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--ink); }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.switch { position: relative; width: 52px; height: 32px; flex: none; }
+.switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.switch i { position: absolute; inset: 0; border-radius: 99px; background: var(--surface-2); transition: background .2s; pointer-events: none; }
+.switch i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .2s; }
+.switch input:checked + i { background: var(--jar, var(--accent)); }
+.switch input:checked + i::after { transform: translateX(20px); }
+.switch input:focus-visible + i { outline: 3px solid var(--accent); outline-offset: 2px; }
+.preview { height: 130px; display: grid; place-items: center; margin-bottom: 8px; }
+.danger-zone { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 16px; display: grid; gap: 10px; }
+.confirm-box { background: color-mix(in srgb, var(--danger) 10%, transparent); border-radius: 14px; padding: 14px; display: grid; gap: 10px; }
+.confirm-box p { margin: 0; }
+.confirm-box .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Toast, status, confetti */
+.toast {
+  position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60;
+  background: var(--ink); color: var(--bg); border-radius: 14px; padding: 10px 10px 10px 16px; display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.25); max-width: calc(100% - 32px); animation: fade .2s ease;
+}
+.toast button { border: 0; background: transparent; color: var(--gold); font-weight: 800; padding: 6px 8px; }
+.status { text-align: center; font-size: .8rem; color: var(--muted); margin-top: 28px; }
+#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 70; }
+
+@media (max-width: 360px) {
+  .grid { gap: 10px; }
+  .card-jar, .card-jar .jar-wrap { height: 110px; }
+  .big-amount { font-size: 2.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wave, .coin.drop, .sheet, .scrim, .toast { animation: none !important; }
+  .liq, .bar > i { transition: none; }
+}
+</style>
+
+<div class="app">
+  <!-- Home -->
+  <section id="home">
+    <header class="head">
+      <div class="brand">
+        <svg class="brand-coin" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="var(--gold)"/><circle cx="13" cy="13" r="7.5" fill="none" stroke="var(--gold-deep)" stroke-width="2"/></svg>
+        Savings Jar
+      </div>
+      <button class="icon-btn" id="settingsBtn" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </header>
+    <div id="homeBody"></div>
+  </section>
+
+  <!-- One jar -->
+  <section id="detail" hidden></section>
+
+  <p class="status" id="status">Loading your jars…</p>
+</div>
+<canvas id="confetti" hidden></canvas>
+<div id="sheetRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- constants ----------
+  const COLORS = {
+    ocean:  { c: "#338CF2", on: "#FFFFFF", name: "Ocean" },
+    mint:   { c: "#24B48F", on: "#FFFFFF", name: "Mint" },
+    sunset: { c: "#FF8A3D", on: "#FFFFFF", name: "Sunset" },
+    berry:  { c: "#E9487D", on: "#FFFFFF", name: "Berry" },
+    lemon:  { c: "#F2B81F", on: "#3A2A00", name: "Lemon" },
+    grape:  { c: "#8F66EB", on: "#FFFFFF", name: "Grape" },
+  };
+  const EMOJIS = ["✈️","🏖️","🏠","🚗","🚲","💻","📱","🎮","🎸","📷","🎓","💍","🎁","🐶","👶","💰"];
+  const QUICK = [5, 10, 20, 50];
+  const CURRENCIES = ["USD","EUR","GBP","CAD","AUD","NZD","JPY","CHF","SEK","NOK","DKK","PLN","INR","SGD","HKD","CNY","KRW","BRL","MXN","ZAR","TRY","AED","SAR","QAR","KWD","BHD","OMR","JOD","EGP","MAD","NGN","KES","PHP","IDR","MYR","THB"];
+  const REGION_CURRENCY = {
+    US:"USD", GB:"GBP", CA:"CAD", AU:"AUD", NZ:"NZD", JP:"JPY", CH:"CHF", SE:"SEK", NO:"NOK", DK:"DKK", PL:"PLN", IN:"INR",
+    SG:"SGD", HK:"HKD", CN:"CNY", KR:"KRW", BR:"BRL", MX:"MXN", ZA:"ZAR", TR:"TRY", AE:"AED", SA:"SAR", QA:"QAR", KW:"KWD",
+    BH:"BHD", OM:"OMR", JO:"JOD", EG:"EGP", MA:"MAD", NG:"NGN", KE:"KES", PH:"PHP", ID:"IDR", MY:"MYR", TH:"THB",
+    DE:"EUR", FR:"EUR", ES:"EUR", IT:"EUR", NL:"EUR", BE:"EUR", AT:"EUR", IE:"EUR", PT:"EUR", FI:"EUR", GR:"EUR", SK:"EUR", SI:"EUR", LU:"EUR", EE:"EUR", LV:"EUR", LT:"EUR", HR:"EUR", CY:"EUR", MT:"EUR",
+  };
+  const BODY = "M20 15 H80 V21 Q96 21 96 37 V108 Q96 128 76 128 H24 Q4 128 4 108 V37 Q4 21 20 21 Z";
+  const WAVE = (() => {
+    let d = "M-50 0";
+    for (let x = -50; x <= 250; x += 5) d += ` L${x} ${(3 * Math.sin((2 * Math.PI * x) / 50)).toFixed(2)}`;
+    return d + " L250 160 L-50 160 Z";
+  })();
+  const ICON = {
+    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+    in: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>',
+    out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+  };
+
+  // ---------- helpers ----------
+  const $ = (s, r = document) => r.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const todayISO = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+  const isoToDate = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
+
+  function guessCurrency() {
+    try {
+      const loc = new Intl.Locale(navigator.language || "en-US").maximize();
+      return REGION_CURRENCY[loc.region] || "USD";
+    } catch { return "USD"; }
+  }
+  const fmtCache = {};
+  function fmt(v, short = false) {
+    const key = state.currency + (short ? "s" : "");
+    if (!fmtCache[key]) {
+      try {
+        fmtCache[key] = new Intl.NumberFormat(undefined, short
+          ? { style: "currency", currency: state.currency, maximumFractionDigits: 0 }
+          : { style: "currency", currency: state.currency });
+      } catch { fmtCache[key] = new Intl.NumberFormat(undefined, { maximumFractionDigits: short ? 0 : 2 }); }
+    }
+    return fmtCache[key].format(v);
+  }
+  function currencySymbol() {
+    try {
+      const p = new Intl.NumberFormat(undefined, { style: "currency", currency: state.currency }).formatToParts(0);
+      return (p.find((x) => x.type === "currency") || {}).value || state.currency;
+    } catch { return state.currency; }
+  }
+  function fractionDigits() {
+    try { return new Intl.NumberFormat("en", { style: "currency", currency: state.currency }).resolvedOptions().maximumFractionDigits; }
+    catch { return 2; }
+  }
+  const DECIMAL = (1.5).toLocaleString().replace(/\d/g, "") || ".";
+  /** Parses what was typed ("12.50", "12,50", "1,200"). Null for empty, invalid or non-positive input. */
+  function parseAmount(text) {
+    let s = String(text).replace(/[^\d.,]/g, "");
+    if (!s) return null;
+    if (DECIMAL === ",") s = s.replace(/\./g, "").replace(",", ".");
+    else s = s.replace(/,/g, "");
+    const v = Number(s);
+    if (!isFinite(v) || v <= 0) return null;
+    const f = Math.pow(10, fractionDigits());
+    return Math.round(v * f) / f;
+  }
+  const plain = (v) => v.toLocaleString(undefined, { useGrouping: false, maximumFractionDigits: 3 });
+
+  // ---------- model ----------
+  let state = { v: 1, currency: guessCurrency(), jars: [] };
+  let openJarId = null;
+
+  const saved = (jar) => jar.deposits.reduce((s, d) => s + d.amount, 0);
+  const progress = (jar) => jar.goal > 0 ? Math.min(Math.max(saved(jar) / jar.goal, 0), 1) : 0;
+  const isComplete = (jar) => jar.goal > 0 && saved(jar) >= jar.goal - 1e-9;
+  const jarById = (id) => state.jars.find((j) => j.id === id);
+  const colorOf = (jar) => COLORS[jar.color] || COLORS.ocean;
+
+  function pace(jar) {
+    if (isComplete(jar)) return { text: "Goal reached! Nicely done.", done: true };
+    if (!jar.deadline) return null;
+    const today = isoToDate(todayISO());
+    const days = Math.round((isoToDate(jar.deadline) - today) / 86400000);
+    const remaining = Math.max(jar.goal - saved(jar), 0);
+    if (days <= 0) return { text: `Target date passed · ${fmt(remaining)} to go` };
+    const weeks = Math.max(days / 7, 1);
+    const when = isoToDate(jar.deadline).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    return { text: `Save ${fmt(remaining / weeks)} a week to reach it by ${when}` };
+  }
+
+  function normalize(raw) {
+    if (!raw || typeof raw !== "object" || !Array.isArray(raw.jars)) return null;
+    const out = { v: 1, currency: typeof raw.currency === "string" ? raw.currency : state.currency, jars: [] };
+    for (const j of raw.jars) {
+      if (!j || typeof j.id !== "string") continue;
+      out.jars.push({
+        id: j.id, name: String(j.name || "Jar").slice(0, 60), emoji: String(j.emoji || "💰").slice(0, 8),
+        goal: Number(j.goal) > 0 ? Number(j.goal) : 1, color: COLORS[j.color] ? j.color : "ocean",
+        createdAt: Number(j.createdAt) || Date.now(), deadline: typeof j.deadline === "string" ? j.deadline : null,
+        deposits: Array.isArray(j.deposits) ? j.deposits.filter((d) => d && isFinite(Number(d.amount))).map((d) => ({
+          id: String(d.id || uid()), amount: Number(d.amount), note: String(d.note || "").slice(0, 80),
+          date: typeof d.date === "string" ? d.date : todayISO(), at: Number(d.at) || 0,
+        })) : [],
+      });
+    }
+    return out;
+  }
+
+  // ---------- storage: private db doc when available, browser storage as backup ----------
+  const LOCAL_KEY = "savings-jar-v1";
+  function readLocal() { try { const s = localStorage.getItem(LOCAL_KEY); return s ? normalize(JSON.parse(s)) : null; } catch { return null; } }
+  function writeLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(state)); } catch {} }
+
+  const Store = {
+    ref: null, mode: "local", writing: false, dirty: false,
+    async init() {
+      const c = window.claude;
+      if (!c || typeof c.use !== "function") return this.setMode("local");
+      let db = null, user = null;
+      try { [db, user] = await Promise.all([c.use("db"), c.use("user")]); } catch {}
+      let id = null;
+      try { id = user ? await user.id() : null; } catch {}
+      if (!db || !id) return this.setMode("local");
+      try { this.ref = db.collection("data/users/" + id).doc("savings"); } catch { return this.setMode("local"); }
+      this.setMode("connecting");
+      const timer = setTimeout(() => { if (this.mode === "connecting") this.setMode("slow"); }, 10000);
+      let confirmed = false;
+      this.ref.onSnapshot((snap) => {
+        if (!snap.metadata.fromCache) { clearTimeout(timer); if (this.mode !== "cloud") this.setMode("cloud"); }
+        if (snap.metadata.hasPendingWrites || this.writing || this.dirty) return;
+        if (snap.exists) {
+          const next = normalize(clone(snap.data()));
+          if (next) { state = next; for (const k in fmtCache) delete fmtCache[k]; writeLocal(); renderAll(); }
+        } else if (!snap.metadata.fromCache && !confirmed && state.jars.length) {
+          this.save(); // first visit with jars kept in this browser: move them to the account
+        }
+        if (!snap.metadata.fromCache) confirmed = true;
+      }, () => { clearTimeout(timer); this.ref = null; this.setMode("local"); });
+    },
+    setMode(m) {
+      this.mode = m;
+      const el = $("#status");
+      el.textContent = {
+        local: "Saved in this browser.",
+        connecting: "Loading your jars…",
+        slow: "Can't reach your saved jars yet. Changes are kept on this device for now.",
+        cloud: "Saved to your Claude account. Only you can see these jars.",
+        error: "Couldn't save the last change to your account. It's kept on this device.",
+      }[m] || "";
+    },
+    save() {
+      writeLocal();
+      if (!this.ref) return;
+      this.dirty = true;
+      this.flush();
+    },
+    async flush() {
+      if (this.writing) return;
+      this.writing = true;
+      let retried = false;
+      while (this.dirty) {
+        this.dirty = false;
+        try {
+          await this.ref.set(clone(state));
+          retried = false;
+          if (this.mode !== "cloud") this.setMode("cloud");
+        } catch (e) {
+          if (e && e.code === "unavailable" && !retried) {
+            retried = true; this.dirty = true;
+            await new Promise((r) => setTimeout(r, 600 + Math.random() * 800));
+          } else { this.setMode("error"); }
+        }
+      }
+      this.writing = false;
+    },
+  };
+
+  function commit() { Store.save(); }
+
+  // ---------- jar drawing ----------
+  let svgSeq = 0;
+  function levelY(p) {
+    if (p <= 0) return 140;
+    const l = Math.max(p, 0.05);
+    return l >= 1 ? 9 : 128 - 113 * l;
+  }
+  function jarSVG(colorKey, p) {
+    const n = ++svgSeq;
+    const c = (COLORS[colorKey] || COLORS.ocean).c;
+    return `<svg class="jar" viewBox="0 0 100 130" aria-hidden="true">
+      <defs>
+        <clipPath id="jc${n}"><path d="${BODY}"/></clipPath>
+        <linearGradient id="jg${n}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".75"/><stop offset="1" stop-color="${c}"/></linearGradient>
+      </defs>
+      <rect x="15" y="1" width="70" height="11" rx="4" fill="${c}" fill-opacity=".9"/>
+      <path d="${BODY}" fill="${c}" fill-opacity=".1"/>
+      <g clip-path="url(#jc${n})">
+        <g class="liq" style="transform: translateY(${levelY(p)}px)">
+          <path class="wave w1" d="${WAVE}" fill="${c}" fill-opacity=".35"/>
+          <g transform="translate(-18 2.5)"><path class="wave w2" d="${WAVE}" fill="url(#jg${n})"/></g>
+        </g>
+      </g>
+      <path d="${BODY}" fill="none" stroke="${c}" stroke-opacity=".6" stroke-width="2.2"/>
+      <rect x="12" y="34" width="4" height="38" rx="2" fill="#FFFFFF" fill-opacity=".5"/>
+    </svg>`;
+  }
+  function jarBlock(colorKey, p, emoji) {
+    return `<div class="jar-wrap">${jarSVG(colorKey, p)}<span class="jar-emoji">${esc(emoji)}</span></div>`;
+  }
+  function setJarLevel(root, p) { const g = root.querySelector(".liq"); if (g) g.style.transform = `translateY(${levelY(p)}px)`; }
+
+  function jarVars(el, jar) {
+    const col = colorOf(jar);
+    el.style.setProperty("--jar", col.c);
+    el.style.setProperty("--jar-on", col.on);
+    el.style.setProperty("--jar-soft", `color-mix(in srgb, ${col.c} 16%, transparent)`);
+    el.style.setProperty("--jar-text", jar.color === "lemon" ? "color-mix(in srgb, #F2B81F 55%, var(--ink))" : col.c);
+  }
+
+  // ---------- home ----------
+  function renderHome() {
+    const body = $("#homeBody");
+    if (!state.jars.length) {
+      body.innerHTML = `
+        <div class="empty">
+          <div class="jar-wrap" style="height:150px">${jarSVG("ocean", 0.3)}<span class="jar-emoji" style="font-size:2.2rem">✈️</span></div>
+          <h2>What are you saving for?</h2>
+          <p>Make a jar for a trip, a laptop or a rainy day, then drop money in as you go and watch it fill.</p>
+          <div class="row">
+            <button class="btn primary" id="firstJar">Create a jar</button>
+            <button class="btn" id="examples">Try example jars</button>
+          </div>
+        </div>`;
+      $("#firstJar").onclick = () => openEditor(null);
+      $("#examples").onclick = loadExamples;
+      return;
+    }
+    const total = state.jars.reduce((s, j) => s + saved(j), 0);
+    const goal = state.jars.reduce((s, j) => s + j.goal, 0);
+    const done = state.jars.filter(isComplete).length;
+    const sorted = [...state.jars].sort((a, b) => a.createdAt - b.createdAt);
+    body.innerHTML = `
+      <div class="total">
+        <span class="label">Total saved</span>
+        <span class="total-amount num">${esc(fmt(total))}</span>
+        <div class="bar" aria-hidden="true"><i style="width:${goal > 0 ? Math.min(total / goal, 1) * 100 : 0}%"></i></div>
+        <span class="total-sub num">${esc(fmt(goal, true))} in goals across ${state.jars.length} ${state.jars.length === 1 ? "jar" : "jars"}${done ? ` · ${done} reached` : ""}</span>
+      </div>
+      <div class="grid">
+        ${sorted.map((j) => `
+          <button class="card" data-id="${esc(j.id)}" aria-label="${esc(j.name)}, ${esc(fmt(saved(j)))} of ${esc(fmt(j.goal))}">
+            ${isComplete(j) ? '<span class="badge">Done</span>' : ""}
+            <div class="card-jar">${jarBlock(j.color, progress(j), j.emoji)}</div>
+            <span class="card-name">${esc(j.name)}</span>
+            <span class="card-money num"><b>${esc(fmt(saved(j), true))}</b> of ${esc(fmt(j.goal, true))}</span>
+            <div class="bar" aria-hidden="true"><i style="width:${progress(j) * 100}%;background:${colorOf(j).c}"></i></div>
+          </button>`).join("")}
+        <button class="card card-new" id="newJar"><span class="plus" aria-hidden="true">+</span>New jar</button>
+      </div>`;
+    body.querySelectorAll(".card[data-id]").forEach((b) => (b.onclick = () => openJar(b.dataset.id)));
+    $("#newJar").onclick = () => openEditor(null);
+  }
+
+  // ---------- detail ----------
+  let shownAmount = 0;
+  function openJar(id) {
+    const jar = jarById(id);
+    if (!jar) return;
+    openJarId = id;
+    const el = $("#detail");
+    jarVars(el, jar);
+    el.innerHTML = `
+      <div class="topbar">
+        <button class="back" id="back">${ICON.back}Jars</button>
+        <div class="tb-title" id="dTitle"></div>
+        <button class="icon-btn" id="editJar" aria-label="Edit jar">${ICON.edit}</button>
+      </div>
+      <div class="hero">
+        <div class="jar-wrap" id="bigJar">${jarSVG(jar.color, progress(jar))}<span class="jar-emoji" id="dEmoji"></span></div>
+        <div class="coin" id="coin" aria-hidden="true"></div>
+      </div>
+      <div class="figures">
+        <div class="big-amount num" id="dAmount" aria-live="polite"></div>
+        <div class="of num" id="dOf"></div>
+        <div class="pace" id="dPace"></div>
+      </div>
+      <div class="quick">${QUICK.map((a) => `<button class="chip num" data-amt="${a}" aria-label="Add ${esc(fmt(a, true))}">+${esc(fmt(a, true))}</button>`).join("")}</div>
+      <div class="actions">
+        <button class="btn primary" id="addBtn">Add money</button>
+        <button class="btn" id="wdBtn">Withdraw</button>
+      </div>
+      <h2 class="section-title">History</h2>
+      <ul class="history" id="history"></ul>`;
+    $("#back").onclick = closeJar;
+    $("#editJar").onclick = () => openEditor(openJarId);
+    $("#addBtn").onclick = () => openMoney("in");
+    $("#wdBtn").onclick = () => openMoney("out");
+    el.querySelectorAll(".chip").forEach((b) => (b.onclick = () => record(Number(b.dataset.amt))));
+    shownAmount = saved(jar);
+    $("#home").hidden = true;
+    el.hidden = false;
+    window.scrollTo(0, 0);
+    updateDetail(false);
+  }
+  function closeJar() {
+    openJarId = null;
+    $("#detail").hidden = true;
+    $("#home").hidden = false;
+    renderHome();
+    window.scrollTo(0, 0);
+  }
+  function updateDetail(animate = true) {
+    const jar = jarById(openJarId);
+    if (!jar) { closeJar(); return; }
+    const el = $("#detail");
+    jarVars(el, jar);
+    $("#dTitle").textContent = jar.name;
+    $("#dEmoji").textContent = jar.emoji;
+    setJarLevel($("#bigJar"), progress(jar));
+    tweenAmount(saved(jar), animate);
+    $("#dOf").textContent = `of ${fmt(jar.goal)} · ${Math.round(progress(jar) * 100)}%`;
+    const p = pace(jar);
+    const paceEl = $("#dPace");
+    paceEl.textContent = p ? p.text : "";
+    paceEl.hidden = !p;
+    paceEl.classList.toggle("done", !!(p && p.done));
+    $("#wdBtn").disabled = saved(jar) <= 0;
+    renderHistory(jar);
+  }
+  let tweenRaf = 0;
+  function tweenAmount(target, animate) {
+    const el = $("#dAmount");
+    cancelAnimationFrame(tweenRaf);
+    if (!animate || reduceMotion() || Math.abs(target - shownAmount) < 0.005) { shownAmount = target; el.textContent = fmt(target); return; }
+    const from = shownAmount, start = performance.now(), dur = 650;
+    const step = (t) => {
+      const k = Math.min((t - start) / dur, 1), e = 1 - Math.pow(1 - k, 3);
+      shownAmount = from + (target - from) * e;
+      el.textContent = fmt(shownAmount);
+      if (k < 1) tweenRaf = requestAnimationFrame(step); else { shownAmount = target; el.textContent = fmt(target); }
+    };
+    tweenRaf = requestAnimationFrame(step);
+  }
+  function renderHistory(jar) {
+    const ul = $("#history");
+    const items = [...jar.deposits].sort((a, b) => (b.date === a.date ? (b.at || 0) - (a.at || 0) : b.date < a.date ? -1 : 1));
+    if (!items.length) { ul.innerHTML = `<li class="none">Nothing in here yet. Tap +${esc(fmt(QUICK[0], true))} to drop in your first coin.</li>`; return; }
+    ul.innerHTML = items.map((d) => {
+      const out = d.amount < 0;
+      const when = isoToDate(d.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+      return `<li>
+        <span class="h-icon${out ? " out" : ""}" aria-hidden="true">${out ? ICON.out : ICON.in}</span>
+        <span style="min-width:0"><div class="h-note">${esc(d.note || (out ? "Withdrawal" : "Deposit"))}</div><div class="h-date">${esc(when)}</div></span>
+        <span class="h-amt num${out ? " out" : ""}">${out ? "−" : "+"}${esc(fmt(Math.abs(d.amount)))}</span>
+        <button class="h-del" data-id="${esc(d.id)}" aria-label="Remove this entry">${ICON.x}</button>
+      </li>`;
+    }).join("");
+    ul.querySelectorAll(".h-del").forEach((b) => (b.onclick = () => removeDeposit(b.dataset.id)));
+  }
+
+  // ---------- actions ----------
+  function record(amount, note = "", date = todayISO()) {
+    const jar = jarById(openJarId);
+    if (!jar) return;
+    const was = isComplete(jar);
+    jar.deposits.push({ id: uid(), amount, note: note.trim().slice(0, 80), date, at: Date.now() });
+    commit();
+    if (amount > 0) dropCoin();
+    if (navigator.vibrate) { try { navigator.vibrate(amount > 0 ? 12 : [8, 40, 8]); } catch {} }
+    updateDetail(true);
+    if (!was && isComplete(jar)) setTimeout(confetti, 450);
+  }
+  function removeDeposit(depId) {
+    const jar = jarById(openJarId);
+    if (!jar) return;
+    const idx = jar.deposits.findIndex((d) => d.id === depId);
+    if (idx < 0) return;
+    const [removed] = jar.deposits.splice(idx, 1);
+    commit();
+    updateDetail(true);
+    const jarId = jar.id;
+    toast(`${removed.amount < 0 ? "Withdrawal" : "Deposit"} removed`, () => {
+      const j = jarById(jarId);
+      if (!j) return;
+      j.deposits.push(removed);
+      commit();
+      if (openJarId === jarId) updateDetail(true);
+    });
+  }
+  function dropCoin() {
+    const c = $("#coin");
+    if (!c || reduceMotion()) return;
+    c.classList.remove("drop");
+    void c.offsetWidth;
+    c.classList.add("drop");
+  }
+  function loadExamples() {
+    const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+    const mk = (name, emoji, goal, color, deadline, deps) => ({
+      id: uid(), name, emoji, goal, color, deadline, createdAt: Date.now() + state.jars.length,
+      deposits: deps.map(([amount, note, d]) => ({ id: uid(), amount, note, date: day(d), at: 0 })),
+    });
+    state.jars.push(
+      mk("Trip to Japan", "✈️", 2500, "berry", day(150), [[500, "Bonus", -40], [250, "", -21], [-60, "Rail pass deposit", -10], [100, "Birthday money", -2]]),
+      mk("New laptop", "💻", 1200, "ocean", null, [[300, "", -14], [120, "Sold old phone", -3]]),
+      mk("Bike", "🚲", 400, "mint", null, [[400, "Saved it all!", -5]]),
+    );
+    state.jars.forEach((j, i) => (j.createdAt = Date.now() + i));
+    commit();
+    renderHome();
+    toast("Added 3 example jars");
+  }
+
+  // ---------- sheets ----------
+  let sheetClose = null;
+  function openSheet(html, mount, jar) {
+    closeSheet();
+    const root = $("#sheetRoot");
+    root.innerHTML = `<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true">${'<div class="grabber"></div>'}${html}</div></div>`;
+    const sheet = root.querySelector(".sheet");
+    if (jar) jarVars(sheet, jar);
+    const prevFocus = document.activeElement;
+    $("#scrim").addEventListener("click", (e) => { if (e.target.id === "scrim") closeSheet(); });
+    const onKey = (e) => { if (e.key === "Escape") closeSheet(); };
+    document.addEventListener("keydown", onKey);
+    sheetClose = () => { document.removeEventListener("keydown", onKey); root.innerHTML = ""; if (prevFocus && prevFocus.focus) prevFocus.focus({ preventScroll: true }); };
+    mount(sheet);
+  }
+  function closeSheet() { if (sheetClose) { const f = sheetClose; sheetClose = null; f(); } }
+
+  function openMoney(kind) {
+    const jar = jarById(openJarId);
+    if (!jar) return;
+    const available = saved(jar);
+    const isIn = kind === "in";
+    openSheet(`
+      <div class="sheet-head">
+        <button class="link-btn left" data-act="cancel">Cancel</button>
+        <h2>${isIn ? "Add money" : "Withdraw"}</h2>
+        <button class="link-btn right" data-act="save" disabled>${isIn ? "Add" : "Withdraw"}</button>
+      </div>
+      <form id="moneyForm" novalidate>
+        <div class="field">
+          <label for="amt">Amount</label>
+          <div class="money-input"><span>${esc(currencySymbol())}</span><input id="amt" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="amtHint"></div>
+          <span class="hint num" id="amtHint">${isIn ? "" : `${esc(fmt(available))} available`}</span>
+        </div>
+        <div class="field">
+          <label for="note">Note</label>
+          <input class="input" id="note" maxlength="80" placeholder="${isIn ? "e.g. Birthday money" : "e.g. Concert tickets"}">
+        </div>
+        <div class="field">
+          <label for="when">Date</label>
+          <input class="input" id="when" type="date" value="${todayISO()}" max="${todayISO()}">
+        </div>
+        <button class="btn primary" style="width:100%" type="submit" id="moneySubmit" disabled>${isIn ? "Add to jar" : "Take out of jar"}</button>
+      </form>`, (sheet) => {
+      const amt = $("#amt", sheet), hint = $("#amtHint", sheet), saveBtn = sheet.querySelector('[data-act="save"]'), submit = $("#moneySubmit", sheet);
+      const valid = () => {
+        const v = parseAmount(amt.value);
+        let ok = v != null;
+        if (!isIn) {
+          if (v != null && v > available + 1e-9) { ok = false; hint.textContent = `There's only ${fmt(available)} in this jar.`; hint.classList.add("err"); }
+          else { hint.textContent = `${fmt(available)} available`; hint.classList.remove("err"); }
+        }
+        saveBtn.disabled = submit.disabled = !ok;
+        return ok ? v : null;
+      };
+      amt.addEventListener("input", valid);
+      const done = (e) => {
+        if (e) e.preventDefault();
+        const v = valid();
+        if (v == null) return;
+        const date = $("#when", sheet).value || todayISO();
+        const note = $("#note", sheet).value;
+        closeSheet();
+        record(isIn ? v : -v, note, date > todayISO() ? todayISO() : date);
+      };
+      $("#moneyForm", sheet).addEventListener("submit", done);
+      saveBtn.onclick = done;
+      sheet.querySelector('[data-act="cancel"]').onclick = closeSheet;
+      setTimeout(() => amt.focus(), 60);
+    }, jar);
+  }
+
+  function openEditor(jarId) {
+    const jar = jarId ? jarById(jarId) : null;
+    const draft = jar
+      ? { name: jar.name, emoji: jar.emoji, goal: plain(jar.goal), color: jar.color, deadline: jar.deadline }
+      : { name: "", emoji: EMOJIS[0], goal: "", color: "ocean", deadline: null };
+    const in3m = (() => { const d = new Date(); d.setMonth(d.getMonth() + 3); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); })();
+    const tmpJar = { color: draft.color };
+    openSheet(`
+      <div class="sheet-head">
+        <button class="link-btn left" data-act="cancel">Cancel</button>
+        <h2>${jar ? "Edit jar" : "New jar"}</h2>
+        <button class="link-btn right" data-act="save" disabled>${jar ? "Save" : "Create"}</button>
+      </div>
+      <form id="jarForm" novalidate>
+        <div class="preview"><div class="jar-wrap" id="pvJar"></div></div>
+        <div class="field">
+          <label for="jName">What are you saving for?</label>
+          <input class="input" id="jName" maxlength="60" placeholder="e.g. Trip to Japan" autocomplete="off" autocapitalize="words">
+        </div>
+        <div class="field">
+          <label for="jGoal">Goal</label>
+          <div class="money-input"><span>${esc(currencySymbol())}</span><input id="jGoal" inputmode="decimal" autocomplete="off" placeholder="0"></div>
+        </div>
+        <div class="field">
+          <span class="label" id="iconLbl">Icon</span>
+          <div class="emoji-grid" role="group" aria-labelledby="iconLbl">${EMOJIS.map((e) => `<button type="button" data-emoji="${e}" aria-label="${e}">${e}</button>`).join("")}</div>
+        </div>
+        <div class="field">
+          <span class="label" id="colorLbl">Color</span>
+          <div class="swatches" role="group" aria-labelledby="colorLbl">${Object.entries(COLORS).map(([k, v]) => `<button type="button" data-color="${k}" aria-label="${v.name}" style="background:${v.c}"></button>`).join("")}</div>
+        </div>
+        <div class="field">
+          <div class="toggle-row"><label for="jHasDate">Target date</label><span class="switch"><input type="checkbox" id="jHasDate" role="switch"><i></i></span></div>
+          <input class="input" id="jDate" type="date" min="${todayISO()}" hidden>
+          <span class="hint">With a target date, the jar tells you how much to save each week.</span>
+        </div>
+        <button class="btn primary" style="width:100%" type="submit" id="jarSubmit" disabled>${jar ? "Save changes" : "Create jar"}</button>
+        ${jar ? `<div class="danger-zone" id="dz"><button type="button" class="btn danger" id="delJar">Delete jar</button></div>` : ""}
+      </form>`, (sheet) => {
+      const name = $("#jName", sheet), goal = $("#jGoal", sheet), hasDate = $("#jHasDate", sheet), date = $("#jDate", sheet);
+      const saveBtn = sheet.querySelector('[data-act="save"]'), submit = $("#jarSubmit", sheet);
+      name.value = draft.name; goal.value = draft.goal;
+      hasDate.checked = !!draft.deadline; date.value = draft.deadline || in3m; date.hidden = !draft.deadline;
+      const paint = () => {
+        tmpJar.color = draft.color; jarVars(sheet, tmpJar);
+        $("#pvJar", sheet).innerHTML = jarSVG(draft.color, 0.55) + `<span class="jar-emoji" style="font-size:2.3rem">${esc(draft.emoji)}</span>`;
+        sheet.querySelectorAll("[data-emoji]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.emoji === draft.emoji)));
+        sheet.querySelectorAll("[data-color]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.color === draft.color)));
+      };
+      const valid = () => { const ok = name.value.trim().length > 0 && parseAmount(goal.value) != null; saveBtn.disabled = submit.disabled = !ok; return ok; };
+      sheet.querySelectorAll("[data-emoji]").forEach((b) => (b.onclick = () => { draft.emoji = b.dataset.emoji; paint(); }));
+      sheet.querySelectorAll("[data-color]").forEach((b) => (b.onclick = () => { draft.color = b.dataset.color; paint(); }));
+      hasDate.onchange = () => { date.hidden = !hasDate.checked; };
+      name.addEventListener("input", valid); goal.addEventListener("input", valid);
+      const save = (e) => {
+        if (e) e.preventDefault();
+        if (!valid()) return;
+        const fields = {
+          name: name.value.trim().slice(0, 60), emoji: draft.emoji, goal: parseAmount(goal.value), color: draft.color,
+          deadline: hasDate.checked && date.value ? date.value : null,
+        };
+        if (jar) Object.assign(jar, fields);
+        else state.jars.push({ id: uid(), createdAt: Date.now(), deposits: [], ...fields });
+        commit();
+        closeSheet();
+        if (openJarId) updateDetail(false); else renderHome();
+      };
+      $("#jarForm", sheet).addEventListener("submit", save);
+      saveBtn.onclick = save;
+      sheet.querySelector('[data-act="cancel"]').onclick = closeSheet;
+      const del = $("#delJar", sheet);
+      if (del) del.onclick = () => {
+        $("#dz", sheet).innerHTML = `<div class="confirm-box" role="alert">
+            <p><strong>Delete “${esc(jar.name)}”?</strong> The jar and its whole history will be removed.</p>
+            <div class="row"><button type="button" class="btn" id="keep">Keep it</button><button type="button" class="btn danger-solid" id="reallyDel">Delete</button></div>
+          </div>`;
+        $("#keep", sheet).onclick = () => { closeSheet(); openEditor(jar.id); };
+        $("#reallyDel", sheet).onclick = () => {
+          state.jars = state.jars.filter((j) => j.id !== jar.id);
+          commit(); closeSheet(); closeJar();
+          toast(`Deleted “${jar.name}”`);
+        };
+        $("#reallyDel", sheet).focus();
+      };
+      paint(); valid();
+      if (!jar) setTimeout(() => name.focus(), 60);
+    }, tmpJar);
+  }
+
+  function openSettings() {
+    openSheet(`
+      <div class="sheet-head"><span></span><h2>Settings</h2><button class="link-btn right" data-act="done">Done</button></div>
+      <div class="field">
+        <label for="cur">Currency</label>
+        <select class="input" id="cur">${CURRENCIES.concat(CURRENCIES.includes(state.currency) ? [] : [state.currency]).map((c) => `<option value="${esc(c)}"${c === state.currency ? " selected" : ""}>${esc(c)}</option>`).join("")}</select>
+        <span class="hint">Changes how amounts are shown. It doesn't convert them.</span>
+      </div>
+      <p class="hint" id="whereSaved"></p>`, (sheet) => {
+      $("#whereSaved", sheet).textContent = $("#status").textContent;
+      $("#cur", sheet).onchange = (e) => {
+        state.currency = e.target.value;
+        for (const k in fmtCache) delete fmtCache[k];
+        commit(); renderAll();
+      };
+      sheet.querySelector('[data-act="done"]').onclick = closeSheet;
+    });
+  }
+
+  // ---------- toast ----------
+  let toastTimer = 0;
+  function toast(msg, undo) {
+    clearTimeout(toastTimer);
+    const root = $("#toastRoot");
+    root.innerHTML = `<div class="toast" role="status"><span></span>${undo ? '<button type="button">Undo</button>' : ""}</div>`;
+    root.querySelector("span").textContent = msg;
+    if (undo) root.querySelector("button").onclick = () => { root.innerHTML = ""; undo(); };
+    toastTimer = setTimeout(() => (root.innerHTML = ""), undo ? 5000 : 3200);
+  }
+
+  // ---------- confetti ----------
+  function confetti() {
+    if (reduceMotion()) { toast("Goal reached! 🎉"); return; }
+    const cv = $("#confetti"), ctx = cv.getContext("2d");
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const W = innerWidth, H = innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr; cv.hidden = false;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const pal = Object.values(COLORS).map((c) => c.c).concat(["#F5B83A", "#FFFFFF"]);
+    const ps = Array.from({ length: 140 }, () => ({
+      x: Math.random() * W, y: -20 - Math.random() * H * 0.3, vx: (Math.random() - 0.5) * 120, vy: 60 + Math.random() * 160,
+      r: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 12, s: 7 + Math.random() * 7, c: pal[(Math.random() * pal.length) | 0],
+    }));
+    const start = performance.now(), dur = 3200;
+    let last = start;
+    const frame = (t) => {
+      const dt = Math.min((t - last) / 1000, 0.05); last = t;
+      const age = t - start;
+      ctx.clearRect(0, 0, W, H);
+      ctx.globalAlpha = age > dur - 700 ? Math.max((dur - age) / 700, 0) : 1;
+      for (const p of ps) {
+        p.vy += 380 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c;
+        ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2 * Math.abs(Math.cos(p.r * 0.7)) + 1);
+        ctx.restore();
+      }
+      if (age < dur) requestAnimationFrame(frame); else { ctx.clearRect(0, 0, W, H); cv.hidden = true; }
+    };
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- boot ----------
+  function renderAll() {
+    if (openJarId && jarById(openJarId)) updateDetail(false);
+    else { if (openJarId) closeJar(); renderHome(); }
+  }
+  $("#settingsBtn").onclick = openSettings;
+  const local = readLocal();
+  if (local) state = local;
+  renderHome();
+  Store.setMode("local");
+  Store.init();
+})();
+</script>
