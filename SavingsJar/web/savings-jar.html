@@ -986,7 +986,27 @@ button { cursor: pointer; }
     cash: { name: "Cash withdrawals", color: "#8A94A6", kw: ["atm", "صراف", "cash withdrawal", "سحب نقدي", "سحب صراف", "cash wdl"] },
     transfers: { name: "Transfers out", color: "#6B7FD6", kw: ["transfer", "تحويل", "sarie", "سريع", "remittance", "حوالة", "stc pay", "stcpay", "urpay", "barq", "برق", "tiqmo"] },
     fees: { name: "Fees", color: "#C2410C", kw: ["fee", "fees", "رسوم", "commission", "عمولة", "charges"] },
+    own: { name: "To your own accounts", color: "#7C8AA5", kw: ["لحسابي", "تحويل لحسابي", "حسابي في بنك", "حساباتي", "own account", "to my account", "between my accounts", "between own accounts"] },
     other: { name: "Other", color: "#A0A7B4", kw: [] },
+  };
+  // Merchant category codes (MCC) that card transactions carry; used when a statement shows no shop name.
+  const MCC = {
+    5814: ["dining", "Fast food"], 5812: ["dining", "Restaurant"], 5813: ["dining", "Café"], 5462: ["dining", "Bakery"],
+    5411: ["groceries", "Supermarket"], 5499: ["groceries", "Food store"], 5422: ["groceries", "Butcher"], 5451: ["groceries", "Dairy"], 5441: ["groceries", "Sweets"], 5331: ["groceries", "Mini-market"],
+    5541: ["transport", "Fuel"], 5542: ["transport", "Fuel"], 4121: ["transport", "Taxi or ride"], 4111: ["transport", "Transit"], 4131: ["transport", "Bus"], 4511: ["transport", "Airline"],
+    4784: ["transport", "Tolls"], 7523: ["transport", "Parking"], 7542: ["transport", "Car wash"], 5533: ["transport", "Car parts"], 7538: ["transport", "Car service"], 4789: ["transport", "Transport"],
+    5399: ["shopping", "General store"], 5311: ["shopping", "Department store"], 5310: ["shopping", "Discount store"], 5651: ["shopping", "Clothing"], 5691: ["shopping", "Clothing"], 5699: ["shopping", "Clothing"],
+    5661: ["shopping", "Shoes"], 5732: ["shopping", "Electronics"], 5734: ["shopping", "Software"], 5942: ["shopping", "Books"], 5945: ["shopping", "Toys"], 5977: ["shopping", "Cosmetics"], 5999: ["shopping", "Shop"],
+    5964: ["shopping", "Online shop"], 5200: ["shopping", "Home goods"], 5251: ["shopping", "Hardware"], 5712: ["shopping", "Furniture"], 5722: ["shopping", "Appliances"], 5941: ["shopping", "Sports goods"],
+    5944: ["shopping", "Jewellery"], 5992: ["shopping", "Florist"], 5995: ["shopping", "Pet shop"], 7230: ["shopping", "Salon"],
+    4814: ["bills", "Phone"], 4899: ["bills", "TV or streaming"], 4900: ["bills", "Utilities"], 5815: ["bills", "Digital media"], 5816: ["bills", "Games"], 5817: ["bills", "Apps"], 5818: ["bills", "Digital goods"],
+    5968: ["bills", "Subscription"], 6300: ["bills", "Insurance"], 6513: ["bills", "Rent"], 9399: ["bills", "Government"], 9311: ["bills", "Tax"], 8211: ["bills", "School"], 8220: ["bills", "University"], 8299: ["bills", "Education"],
+    7832: ["entertainment", "Cinema"], 7997: ["entertainment", "Club or gym"], 7941: ["entertainment", "Sports"], 7996: ["entertainment", "Amusement park"], 7999: ["entertainment", "Leisure"],
+    7011: ["entertainment", "Hotel"], 4722: ["entertainment", "Travel agency"], 7922: ["entertainment", "Tickets"],
+    5912: ["health", "Pharmacy"], 8011: ["health", "Doctor"], 8021: ["health", "Dentist"], 8062: ["health", "Hospital"], 8099: ["health", "Medical"], 8071: ["health", "Lab"], 8042: ["health", "Optician"], 8043: ["health", "Optician"], 7298: ["health", "Spa"],
+    5735: ["entertainment", "Music & media"], 7531: ["transport", "Car repair"], 7549: ["transport", "Towing"], 7512: ["transport", "Car rental"], 5511: ["transport", "Car dealer"],
+    8999: ["other", "Services"], 7299: ["other", "Services"], 7210: ["other", "Laundry"], 7211: ["other", "Laundry"], 8398: ["other", "Charity"], 8661: ["other", "Donation"],
+    6011: ["cash", "ATM"], 6010: ["cash", "Cash"], 6540: ["transfers", "Wallet top-up"], 6012: ["transfers", "Financial service"], 6051: ["transfers", "Wallet"], 4829: ["transfers", "Money transfer"],
   };
   const catName = (c) => (c === "income" ? "Money in" : (CATS[c] || CATS.other).name);
   const catColor = (c) => (c === "income" ? "var(--gold)" : (CATS[c] || CATS.other).color);
@@ -1002,15 +1022,20 @@ button { cursor: pointer; }
     return false;
   }
   const merchantKey = (desc) => normDigits(desc).toLowerCase().replace(/[0-9*#•.,:;/\\_\-()]+/g, " ").replace(/\s+/g, " ").trim().split(" ").slice(0, 3).join(" ");
+  function keywordCat(desc) {
+    const t = " " + normDigits(desc).normalize("NFKC").toLowerCase() + " ";
+    for (const [w, k] of KW) if (kwHit(t, w)) return k;
+    return null;
+  }
   function categorize(desc, amount) {
     const rule = spend.rules[merchantKey(desc)];
     if (rule) return rule;
+    const hit = keywordCat(desc);
+    if (hit === "own") return "own";
     if (amount > 0) return "income";
-    const t = " " + normDigits(desc).toLowerCase() + " ";
-    for (const [w, k] of KW) if (kwHit(t, w)) return k;
-    return "other";
+    return hit || "other";
   }
-  const effCat = (t) => (t.a < 0 && t.c === "income" ? "other" : t.a > 0 ? "income" : t.c);
+  const effCat = (t) => (t.c === "own" ? "own" : t.a < 0 && t.c === "income" ? "other" : t.a > 0 ? "income" : t.c);
 
   function normalizeSpend(raw) {
     if (!raw || typeof raw !== "object" || !Array.isArray(raw.tx)) return null;
@@ -1106,7 +1131,7 @@ button { cursor: pointer; }
     if (/^(dr|d)$|debit|withdraw|purchase|مدين|سحب|شراء|خصم/.test(t)) return -1;
     return 0;
   }
-  const cleanDesc = (t) => normDigits(t).replace(/\s+/g, " ").trim().replace(/\d[\d*xX•]{5,}\d*/g, "••••").slice(0, 70);
+  const cleanDesc = (t) => normDigits(t).normalize("NFKC").replace(/\s+/g, " ").trim().replace(/\d[\d*xX•]{5,}\d*/g, "••••").slice(0, 70);
   function extract(rows, headerRow, map) {
     const body = rows.slice(headerRow + 1);
     const order = dateOrder(body.map((r) => (r || [])[map.date]));
@@ -1147,6 +1172,11 @@ button { cursor: pointer; }
     return xlsxPromise;
   }
   async function readStatement(file) {
+    if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
+      const tx = await readPDF(file);
+      if (!tx) throw new Error("pdf-layout");
+      return { pdf: true, tx };
+    }
     const XLSX = await loadXLSX();
     const isCSV = /\.csv$/i.test(file.name) || file.type === "text/csv";
     const wb = isCSV
@@ -1165,6 +1195,109 @@ button { cursor: pointer; }
     return best;
   }
 
+  // PDF statements: rebuild the transaction table from text positions.
+  let pdfPromise = null;
+  function loadScript(src) {
+    return new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = src; sc.onload = res; sc.onerror = () => rej(new Error("load")); document.head.appendChild(sc); });
+  }
+  function loadPDFJS() {
+    if (!pdfPromise) pdfPromise = (async () => {
+      const base = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+      await loadScript(base + "pdf.worker.min.js"); // loaded as a plain script, so the reader runs on the page itself
+      await loadScript(base + "pdf.min.js");
+      const lib = window.pdfjsLib;
+      if (!lib || !window.pdfjsWorker) throw new Error("load");
+      lib.GlobalWorkerOptions.workerSrc = base + "pdf.worker.min.js";
+      return lib;
+    })().catch(() => { pdfPromise = null; throw new Error("load"); });
+    return pdfPromise;
+  }
+  const PDF_HEAD = { date: /^date$/i, type: /^transaction type$|^type$/i, desc: /^description$|^details$|^narration$/i, debit: /^debit$|^withdrawals?$/i, credit: /^credit$|^deposits?$/i, balance: /^balance$/i, amount: /^amount$/i };
+  const META = /^(terminal\b|ref\.?\s*#|vat chrg|charges?:|mcc-?\d|city:|uti#|benbk:|rembk:|location:|payment type:|agreement id:|saudi arabia$|alahlimobile$|mc\d{3,}$|\*{2,}\d+$|[\d\s+]{6,}$|extn)/i;
+  const CITY = /^(riyadh|jeddah|jiddah|makkah|mecca|madinah|medina|dammam|khobar|al khobar|dhahran|kharj|al kharj|taif|tabuk|abha|buraydah|qassim|hail|jazan|jizan|najran|yanbu|jubail|al ahsa|hofuf|khamis mushait|الرياض|جدة|مكة|المدينة|الدمام|الخبر|الخرج)$/i;
+  const OWN_RE = /لحسابي|حسابي في بنك|حساباتي|own account|my account/i;
+  const titleCase = (s) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
+  function describeRow(type, lines, amt) {
+    const ty = type.toLowerCase(), all = lines.join("\n");
+    const mcc = (all.match(/mcc-?\s*(\d{4})/i) || [])[1];
+    const bankLine = lines.find((l) => /^benbk:/i.test(l));
+    const bank = bankLine ? titleCase(bankLine.replace(/^benbk:\s*/i, "").trim()) : "";
+    const nameLine = lines.map((l) => l.replace(/^[\s,.\-]+|[\s,.\-]+$/g, "")).find((l) => l && !META.test(l) && /[A-Za-z؀-ۿ]{3}/.test(l)) || "";
+    if (/payroll|salary|راتب/.test(ty)) return { t: "Salary" + (nameLine ? " · " + nameLine : ""), c: "income" };
+    if (/credit card payment|card payment|سداد البطاقة/.test(ty)) return { t: "Credit card payment", c: "own" };
+    if (/fee|vat|charge|رسوم|ضريبة/.test(ty)) return { t: type, c: "fees" };
+    if (/transfer|remittance|تحويل|حوالة/.test(ty)) {
+      const out = amt < 0;
+      if (OWN_RE.test(all)) return { t: out ? `To your account${bank ? " at " + bank : ""}` : "From your own account", c: "own" };
+      return out ? { t: `Transfer${bank ? " to " + bank : " out"}`, c: "transfers" } : { t: "Transfer in" + (nameLine ? " · " + nameLine : ""), c: "income" };
+    }
+    if (/atm|cash withdrawal/.test(ty)) return { t: "ATM cash withdrawal", c: "cash" };
+    if (/refund|reversal|استرداد/.test(ty)) return { t: "Refund" + (nameLine ? " · " + nameLine : ""), c: "income" };
+    if (amt > 0) return { t: nameLine || type || "Money in", c: "income" };
+    // A purchase: POS rows start with the shop's name; online rows often carry only a category code.
+    const first = (lines[0] || "").replace(/^[\s,.\-]+|[\s,.\-]+$/g, "");
+    // SNB prints the shop's street or district (sometimes only the city), so pair it with what the category code says.
+    const shop = /online purchase$/.test(ty) || META.test(first) ? "" : first;
+    const isCity = CITY.test(shop);
+    const m = mcc ? MCC[mcc] : null;
+    const byName = shop && !isCity ? keywordCat(shop) : null;
+    const known = byName && byName !== "own" ? byName : null;
+    const label = m ? m[1] : mcc ? "MCC " + mcc : "";
+    let t;
+    if (known || (shop && !isCity && !label)) t = shop;
+    else if (shop && !isCity) t = `${shop} · ${label}`;
+    else if (isCity) t = `${titleCase(shop)}${label ? " · " + label : ""}`;
+    else t = `${/online/.test(ty) ? "Online purchase" : "Card purchase"}${label ? " · " + label : ""}`;
+    return { t, c: known || (m ? m[0] : null) || "other" };
+  }
+  async function readPDF(file) {
+    const lib = await loadPDFJS();
+    const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false, disableFontFace: true }).promise;
+    const out = [];
+    let found = false;
+    for (let n = 1; n <= doc.numPages; n++) {
+      const tc = await (await doc.getPage(n)).getTextContent();
+      const items = tc.items.filter((it) => it.str && it.str.trim()).map((it) => ({ s: it.str.normalize("NFKC").trim(), x: it.transform[4], y: it.transform[5] }));
+      const lines = {};
+      for (const it of items) (lines[Math.round(it.y)] = lines[Math.round(it.y)] || []).push(it);
+      let head = null;
+      for (const [y, row] of Object.entries(lines)) {
+        const col = {};
+        for (const it of row) for (const [k, re] of Object.entries(PDF_HEAD)) if (col[k] == null && re.test(it.s)) col[k] = it.x;
+        if (col.date != null && col.desc != null && (col.debit != null || col.credit != null || col.amount != null)) { head = { y: +y, col }; break; }
+      }
+      if (!head) continue;
+      found = true;
+      const cols = Object.entries(head.col).sort((a, b) => a[1] - b[1]);
+      const colOf = (x) => { let c = null; for (const [k, cx] of cols) if (x >= cx - 4) c = k; return c; };
+      const below = items.filter((it) => it.y < head.y - 3);
+      const foot = Math.max(-Infinity, ...below.filter((it) => /^this statement|^page:|^الصفحة/i.test(it.s)).map((it) => it.y));
+      const rows = below.filter((it) => it.y > foot + 2);
+      const anchors = rows.filter((it) => colOf(it.x) === "date" && /^\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4}$/.test(normDigits(it.s))).sort((a, b) => b.y - a.y);
+      const order = dateOrder(anchors.map((a) => a.s));
+      anchors.forEach((an, i) => {
+        const top = an.y + 3, bottom = i + 1 < anchors.length ? anchors[i + 1].y + 3 : -Infinity;
+        const cell = { type: [], desc: [], debit: [], credit: [], amount: [] };
+        for (const it of rows) if (it.y <= top && it.y > bottom) { const c = colOf(it.x); if (cell[c]) cell[c].push(it); }
+        const asLines = (arr) => {
+          const g = {};
+          for (const it of arr) (g[Math.round(it.y)] = g[Math.round(it.y)] || []).push(it);
+          return Object.keys(g).sort((a, b) => b - a).map((k) => g[k].sort((a, b) => a.x - b.x).map((it) => it.s).join(" "));
+        };
+        const num = (arr) => (arr.length ? toNumber(arr.map((it) => it.s).join("")) : NaN);
+        const deb = num(cell.debit), cre = num(cell.credit), am = num(cell.amount);
+        let a = NaN;
+        if (isFinite(deb) || isFinite(cre)) a = (isFinite(cre) ? Math.abs(cre) : 0) - (isFinite(deb) ? Math.abs(deb) : 0);
+        else if (isFinite(am)) a = am;
+        const d = toISO(an.s, order);
+        if (!d || !isFinite(a) || Math.abs(a) < 0.005) return;
+        const info = describeRow(asLines(cell.type).join(" "), asLines(cell.desc), a);
+        out.push({ d, t: cleanDesc(info.t) || "Transaction", a: Math.round(a * 100) / 100, c: info.c });
+      });
+    }
+    return found ? out : null;
+  }
+
   /** Adds new transactions, skipping ones already imported (same date, amount and description). */
   function mergeTx(list, { sample = false, dryRun = false } = {}) {
     const key = (t) => `${t.d}|${t.a}|${t.t.toLowerCase()}`;
@@ -1176,7 +1309,7 @@ button { cursor: pointer; }
       seen[k] = (seen[k] || 0) + 1;
       if (seen[k] <= (have[k] || 0)) { dup++; continue; }
       added++;
-      if (!dryRun) spend.tx.push({ id: uid(), d: t.d, t: t.t, a: t.a, c: categorize(t.t, t.a), ...(sample ? { s: 1 } : {}) });
+      if (!dryRun) spend.tx.push({ id: uid(), d: t.d, t: t.t, a: t.a, c: spend.rules[merchantKey(t.t)] || t.c || categorize(t.t, t.a), ...(sample ? { s: 1 } : {}) });
     }
     return { added, dup };
   }
@@ -1189,19 +1322,20 @@ button { cursor: pointer; }
   function monthStats(ym) {
     const txs = spend.tx.filter((t) => t.d.startsWith(ym)).sort((a, b) => (a.d < b.d ? 1 : -1));
     const byCat = {};
-    let spent = 0, income = 0, round = 0;
+    let spent = 0, income = 0, round = 0, moved = 0;
     for (const t of txs) {
+      if (effCat(t) === "own") { moved -= t.a; continue; }
       if (t.a > 0) { income += t.a; continue; }
       const v = -t.a, c = effCat(t);
       spent += v; byCat[c] = (byCat[c] || 0) + v;
       if (c !== "transfers" && c !== "cash" && c !== "bills") round += Math.ceil(v / 10 - 1e-9) * 10 - v;
     }
-    return { txs, spent, income, round, cats: Object.entries(byCat).sort((a, b) => b[1] - a[1]) };
+    return { txs, spent, income, round, moved, cats: Object.entries(byCat).sort((a, b) => b[1] - a[1]) };
   }
   function recurring() {
     const g = {};
     for (const t of spend.tx) {
-      if (t.a >= 0 || ["transfers", "cash", "groceries", "transport", "dining", "delivery"].includes(effCat(t))) continue;
+      if (t.a >= 0 || ["own", "transfers", "cash", "groceries", "transport", "dining", "delivery"].includes(effCat(t))) continue;
       const k = merchantKey(t.t), ym = t.d.slice(0, 7);
       const e = (g[k] = g[k] || { months: {}, last: t });
       e.months[ym] = (e.months[ym] || 0) - t.a;
@@ -1225,7 +1359,7 @@ button { cursor: pointer; }
       list.push({ title: `Spend a quarter less on ${nm}`, body: `You spent ${fmt(v, true)} on ${nm} in ${when}. A quarter less frees up about ${fmt(save, true)} a month.`, amount: save });
     }
     if (st.round >= 20) list.push({ title: "Round up your purchases", body: `Rounding each purchase up to the next ${fmt(10, true)} would have set aside ${fmt(st.round, true)} in ${when}.`, amount: roundNice(st.round) });
-    const left = st.income - st.spent;
+    const left = st.income - st.spent - st.moved;
     if (st.income > 0 && left > 50) list.push({ title: "Keep half of what's left", body: `${fmt(left, true)} was left after spending in ${when}. If that's a typical month, setting aside half is ${fmt(roundNice(left / 2), true)} a month.`, amount: roundNice(left / 2) });
     return list;
   }
@@ -1237,7 +1371,7 @@ button { cursor: pointer; }
   }
   function txItems(list, editable) {
     return list.map((t) => `<li>
-        <span style="min-width:0"><span class="tx-desc" dir="auto">${esc(t.t)}</span><span class="tx-date num">${esc(fmtDay(t.d))}${editable ? "" : " · " + esc(catName(categorize(t.t, t.a)))}</span></span>
+        <span style="min-width:0"><span class="tx-desc" dir="auto">${esc(t.t)}</span><span class="tx-date num">${esc(fmtDay(t.d))}${editable ? "" : " · " + esc(catName(spend.rules[merchantKey(t.t)] || t.c || categorize(t.t, t.a)))}</span></span>
         <span class="tx-amt num${t.a > 0 ? " pos" : ""}">${t.a > 0 ? "+" : "−"}${esc(fmt(Math.abs(t.a)))}</span>
         ${editable ? `<select class="tx-cat" data-id="${esc(t.id)}" aria-label="Category for ${esc(t.t)}">${catOptions(effCat(t))}</select>` : ""}
       </li>`).join("");
@@ -1251,7 +1385,7 @@ button { cursor: pointer; }
             <rect x="24" y="22" width="36" height="5" rx="2.5" fill="var(--surface-2)"/><rect x="24" y="34" width="26" height="5" rx="2.5" fill="var(--surface-2)"/>
             <rect x="24" y="46" width="32" height="5" rx="2.5" fill="var(--surface-2)"/><circle cx="62" cy="62" r="14" fill="var(--gold)"/><circle cx="62" cy="62" r="8.5" fill="none" stroke="var(--gold-deep)" stroke-width="2.4"/></svg>
           <h2>See where your money goes</h2>
-          <p>Import your Al Rajhi statement. Savings Jar sorts your spending, spots subscriptions and suggests how much each jar can get every month.</p>
+          <p>Import a statement from your bank (PDF or Excel). Savings Jar sorts your spending, spots subscriptions and suggests how much each jar can get every month.</p>
           <div class="row">
             <button class="btn primary" id="importBtn">Import statement</button>
             <button class="btn" id="sampleBtn">Try a sample statement</button>
@@ -1262,10 +1396,11 @@ button { cursor: pointer; }
       return;
     }
     if (!spendMonth || !ms.includes(spendMonth)) spendMonth = ms[0];
-    const st = monthStats(spendMonth), left = st.income - st.spent;
+    const st = monthStats(spendMonth), left = st.income - st.spent - st.moved;
     const max = st.cats.length ? st.cats[0][1] : 1;
     const rec = recurring(), idea = ideas(st, spendMonth);
-    const incomeTx = st.txs.filter((t) => t.a > 0);
+    const incomeTx = st.txs.filter((t) => t.a > 0 && effCat(t) !== "own");
+    const ownTx = st.txs.filter((t) => effCat(t) === "own");
     body.innerHTML = `
       ${spend.sample ? `<div class="notice"><span>This is a <b>sample statement</b>, not your real spending.</span><button class="link-btn" id="rmSample">Remove sample</button></div>` : ""}
       <div class="months">${ms.map((m) => `<button class="mchip" data-m="${m}" aria-pressed="${m === spendMonth}">${esc(monthName(m))}</button>`).join("")}</div>
@@ -1274,7 +1409,8 @@ button { cursor: pointer; }
         <span class="total-amount num">${esc(fmt(st.spent))}</span>
         <div class="inout num">
           <span>Money in <b>${esc(fmt(st.income, true))}</b></span>
-          ${st.income > 0 ? (left >= 0 ? `<span>Left over <b class="pos">${esc(fmt(left, true))}</b></span>` : `<span>Spent more than came in by <b class="neg">${esc(fmt(-left, true))}</b></span>`) : ""}
+          ${st.income > 0 ? (left >= 0 ? `<span>${st.moved ? "Left in this account" : "Left over"} <b class="pos">${esc(fmt(left, true))}</b></span>` : `<span>Spent more than came in by <b class="neg">${esc(fmt(-left, true))}</b></span>`) : ""}
+          ${st.moved ? `<span>Moved to your own accounts <b>${esc(fmt(st.moved, true))}</b></span>` : ""}
         </div>
       </div>
       ${idea.length ? `<h2 class="section-title">Ideas for your jars</h2><div class="ideas">${idea.map((x, i) => `
@@ -1290,6 +1426,13 @@ button { cursor: pointer; }
           </button>
           ${openCat === c ? `<ul class="txs">${txItems(st.txs.filter((t) => t.a < 0 && effCat(t) === c), true)}</ul>` : ""}
         </li>`).join("")}
+        ${ownTx.length ? `<li>
+          <button class="cat-row" data-c="own" aria-expanded="${openCat === "own"}">
+            <span class="dot" style="background:${CATS.own.color}"></span><span class="cat-name">To your own accounts <span class="hint">(not spending)</span></span>
+            <span class="cat-amt num">${esc(fmt(st.moved, true))}</span>
+          </button>
+          ${openCat === "own" ? `<ul class="txs">${txItems(ownTx, true)}</ul>` : ""}
+        </li>` : ""}
         ${incomeTx.length ? `<li>
           <button class="cat-row" data-c="income" aria-expanded="${openCat === "income"}">
             <span class="dot" style="background:var(--gold)"></span><span class="cat-name">Money in</span>
@@ -1380,12 +1523,12 @@ button { cursor: pointer; }
       <div class="sheet-head"><button class="link-btn left" data-act="cancel">Cancel</button><h2>Import statement</h2><span></span></div>
       <div id="impBody">
         <ol class="steps">
-          <li>In the Al Rajhi app, open the account or card you spend from and go to its statement.</li>
-          <li>Pick a period, for example last month, and export or share it as an <b>Excel</b> file. Save it to Files.</li>
+          <li>In your bank's app (Al Rajhi, SNB AlAhli and others), open the statement for the account or card you spend from.</li>
+          <li>Pick a period, for example last month, and export or share it as a <b>PDF</b> or <b>Excel</b> file. Save it to Files.</li>
           <li>Choose that file here.</li>
         </ol>
-        <label class="btn primary file-btn" for="stmtFile">Choose Excel file</label>
-        <input type="file" id="stmtFile" class="visually-hidden" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv">
+        <label class="btn primary file-btn" for="stmtFile">Choose statement file</label>
+        <input type="file" id="stmtFile" class="visually-hidden" accept=".pdf,application/pdf,.xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv">
         <p class="hint" style="margin-top:12px">The file is read on this device. Savings Jar keeps only each transaction's date, description and amount, and hides long card or account numbers.</p>
         <p class="hint err" id="impErr" role="alert" hidden></p>
       </div>`, (sheet) => {
@@ -1399,13 +1542,15 @@ button { cursor: pointer; }
         try {
           const res = await readStatement(file);
           if (!res) throw new Error("empty");
-          if (res.map) showPreview(sheet, res, file.name); else showMapping(sheet, res, file.name);
+          if (res.map || res.pdf) showPreview(sheet, res, file.name); else showMapping(sheet, res, file.name);
         } catch (ex) {
-          lbl.textContent = "Choose Excel file";
+          lbl.textContent = "Choose statement file";
           e.target.value = "";
           err.textContent = ex && ex.message === "load"
-            ? "Couldn't load the Excel reader. Check your internet connection and try again."
-            : "That file couldn't be read. Choose the Excel (.xlsx or .xls) statement exported from your bank.";
+            ? "Couldn't load the file reader. Check your internet connection and try again."
+            : ex && ex.message === "pdf-layout"
+              ? "Savings Jar couldn't find a transaction table in this PDF. Try the Excel export from your bank instead."
+              : "That file couldn't be read. Choose the PDF or Excel statement exported from your bank.";
           err.hidden = false;
         }
       };
@@ -1413,10 +1558,11 @@ button { cursor: pointer; }
   }
 
   function showPreview(sheet, res, fileName) {
-    const ex = extract(res.rows, res.headerRow, res.map);
+    const ex = res.pdf ? { tx: res.tx, assumedSpending: false } : extract(res.rows, res.headerRow, res.map);
+    if (res.pdf && !ex.tx.length) { const e = $("#impBody", sheet); e.innerHTML = `<p class="hint err">No transactions were found in this PDF.</p>`; return; }
     if (!ex.tx.length) { showMapping(sheet, res, fileName, "No transactions were found with those columns. Check which column is which."); return; }
     const ds = ex.tx.map((t) => t.d).sort();
-    const spent = ex.tx.reduce((s, t) => s + (t.a < 0 ? -t.a : 0), 0), inc = ex.tx.reduce((s, t) => s + (t.a > 0 ? t.a : 0), 0);
+    const spent = ex.tx.reduce((s, t) => s + (t.a < 0 && t.c !== "own" ? -t.a : 0), 0), inc = ex.tx.reduce((s, t) => s + (t.a > 0 && t.c !== "own" ? t.a : 0), 0);
     const { dup } = mergeTx(ex.tx, { dryRun: true });
     const long = (iso) => isoToDate(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
     const box = $("#impBody", sheet);
@@ -1428,13 +1574,14 @@ button { cursor: pointer; }
         <div class="inout num"><span>Spent <b>${esc(fmt(spent, true))}</b></span><span>Money in <b>${esc(fmt(inc, true))}</b></span></div>
         ${dup ? `<p class="hint">${dup} of these ${dup === 1 ? "was" : "were"} imported before and will be skipped.</p>` : ""}
         ${ex.assumedSpending ? `<p class="hint">Every amount in this file is positive, so they're all counted as spending.</p>` : ""}
+        ${ex.tx.some((t) => t.c === "own") ? `<p class="hint">Transfers to your own accounts are shown separately and not counted as spending.</p>` : ""}
       </div>
       ${state.currency !== "SAR" ? `<div class="toggle-row" style="margin-bottom:10px"><label for="impSar">Show amounts in Saudi riyals (SAR)</label><span class="switch"><input type="checkbox" id="impSar" role="switch" checked><i></i></span></div>` : ""}
       <span class="label">First few</span>
       <ul class="txs">${txItems([...ex.tx].sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, 5), false)}</ul>
-      <div class="row2"><button class="btn" id="impFix">Columns look wrong</button><button class="btn primary" id="impGo">Import</button></div>`;
+      ${res.pdf ? `<button class="btn primary" style="width:100%;margin-top:14px" id="impGo">Import</button>` : `<div class="row2"><button class="btn" id="impFix">Columns look wrong</button><button class="btn primary" id="impGo">Import</button></div>`}`;
     box.querySelector(".ps-file").textContent = fileName;
-    $("#impFix", sheet).onclick = () => showMapping(sheet, res, fileName);
+    if (!res.pdf) $("#impFix", sheet).onclick = () => showMapping(sheet, res, fileName);
     $("#impGo", sheet).onclick = () => {
       const sar = $("#impSar", sheet);
       if (sar && sar.checked) { state.currency = "SAR"; for (const k in fmtCache) delete fmtCache[k]; commit(); }
